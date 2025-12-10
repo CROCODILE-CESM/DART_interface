@@ -1,3 +1,6 @@
 [submodule "DART"]
 	path = DART
 	url = https://github.com/NCAR/DART.git
+	fxDONOTUSEurl = https://github.com/NCAR/DART.git
+    	fxtag = v11.19.1
+    	fxrequired = AlwaysRequired
