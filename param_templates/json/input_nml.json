@@ -7,8 +7,9 @@
          "values": ".false."
       },
       "input_state_files": {
-         "$DATA_ASSIMILATION_OCN == True and $COMP_OCN == \"pop\"": {
-            "values": "'pop.r.nc'"
+         "values": {
+            "$COMP_OCN == \"mom6\"": "mom6.r.nc'",
+            "else": "restart.nc"
          }
       },
       "init_time_days": {
@@ -77,9 +78,7 @@
          "values": "'no_CESM_advance_script'"
       },
       "ens_size": {
-         "$DATA_ASSIMILATION_OCN == True": {
-            "values": "$NINST_OCN"
-         }
+         "values": "$NINST_OCN"
       },
       "obs_sequence_in_name": {
          "values": "'obs_seq.out'"
@@ -115,9 +114,7 @@
          "values": "3,"
       },
       "num_output_obs_members": {
-         "$DATA_ASSIMILATION_OCN == True": {
-            "values": "$NINST_OCN"
-         }
+         "values": "$NINST_OCN"
       },
       "output_interval": {
          "values": 1
@@ -269,14 +266,10 @@
    },
    "obs_kind_nml": {
       "assimilate_these_obs_types": {
-         "$DATA_ASSIMILATION_OCN == True": {
-            "values": "'SALINITY',         'TEMPERATURE',\n                   'APB_SALINITY',     'APB_TEMPERATURE',\n                  'ADCP_SALINITY',    'ADCP_TEMPERATURE',\n                  'ARGO_SALINITY',    'ARGO_TEMPERATURE',\n                'BOTTLE_SALINITY',  'BOTTLE_TEMPERATURE',\n                   'CTD_SALINITY',     'CTD_TEMPERATURE',\n                   'DBT_SALINITY',     'DBT_TEMPERATURE',\n               'DRIFTER_SALINITY', 'DRIFTER_TEMPERATURE',\n                 'FLOAT_SALINITY',   'FLOAT_TEMPERATURE',\n                'GLIDER_SALINITY',  'GLIDER_TEMPERATURE',\n                   'MBT_SALINITY',     'MBT_TEMPERATURE',\n               'MOORING_SALINITY', 'MOORING_TEMPERATURE',\n                   'STD_SALINITY',     'STD_TEMPERATURE',\n                  'TCTD_SALINITY',    'TCTD_TEMPERATURE',\n                   'XBT_SALINITY',     'XBT_TEMPERATURE',\n                  'XCTD_SALINITY',    'XCTD_TEMPERATURE',\n"
-         }
+         "values": "'SALINITY',         'TEMPERATURE',\n                   'APB_SALINITY',     'APB_TEMPERATURE',\n                  'ADCP_SALINITY',    'ADCP_TEMPERATURE',\n                  'ARGO_SALINITY',    'ARGO_TEMPERATURE',\n                'BOTTLE_SALINITY',  'BOTTLE_TEMPERATURE',\n                   'CTD_SALINITY',     'CTD_TEMPERATURE',\n                   'DBT_SALINITY',     'DBT_TEMPERATURE',\n               'DRIFTER_SALINITY', 'DRIFTER_TEMPERATURE',\n                 'FLOAT_SALINITY',   'FLOAT_TEMPERATURE',\n                'GLIDER_SALINITY',  'GLIDER_TEMPERATURE',\n                   'MBT_SALINITY',     'MBT_TEMPERATURE',\n               'MOORING_SALINITY', 'MOORING_TEMPERATURE',\n                   'STD_SALINITY',     'STD_TEMPERATURE',\n                  'TCTD_SALINITY',    'TCTD_TEMPERATURE',\n                   'XBT_SALINITY',     'XBT_TEMPERATURE',\n                  'XCTD_SALINITY',    'XCTD_TEMPERATURE',\n"
       },
       "evaluate_these_obs_types": {
-         "$DATA_ASSIMILATION_OCN == True": {
-            "values": "'SEA_SURFACE_HEIGHT',\n'U_CURRENT_COMPONENT',\n'V_CURRENT_COMPONENT'\n"
-         }
+         "values": "'SEA_SURFACE_HEIGHT',\n'U_CURRENT_COMPONENT',\n'V_CURRENT_COMPONENT'\n"
       }
    },
    "quality_control_nml": {
@@ -304,14 +297,10 @@
          "values": "'${SRCROOT}/components/dart/DART/observations/forward_operators/obs_def_mod.f90'"
       },
       "obs_type_files": {
-         "values": {
-            "$DATA_ASSIMILATION_OCN == True": "'${SRCROOT}/components/dart/DART/observations/forward_operators/obs_def_ocean_mod.f90'"
-         }
+         "values": "'${SRCROOT}/components/dart/DART/observations/forward_operators/obs_def_ocean_mod.f90'"
       },
       "quantity_files": {
-         "values": {
-            "$DATA_ASSIMILATION_OCN == True": "'${SRCROOT}/components/dart/DART/assimilation_code/modules/observations/ocean_quantities_mod.f90'"
-         }
+         "values": "'${SRCROOT}/components/dart/DART/assimilation_code/modules/observations/ocean_quantities_mod.f90'"
       }
    },
    "model_nml": {
@@ -334,9 +323,7 @@
          "values": 0
       },
       "model_state_variables": {
-         "$DATA_ASSIMILATION_OCN == True": {
-            "values": "'SALT_CUR ', 'QTY_SALINITY             ', 'UPDATE',\n'TEMP_CUR ', 'QTY_POTENTIAL_TEMPERATURE', 'UPDATE',\n'UVEL_CUR ', 'QTY_U_CURRENT_COMPONENT  ', 'UPDATE',\n'VVEL_CUR ', 'QTY_V_CURRENT_COMPONENT  ', 'UPDATE',\n'PSURF_CUR', 'QTY_SEA_SURFACE_PRESSURE ', 'UPDATE'\n"
-         }
+         "values": "'SALT_CUR ', 'QTY_SALINITY             ', 'UPDATE',\n'TEMP_CUR ', 'QTY_POTENTIAL_TEMPERATURE', 'UPDATE',\n'UVEL_CUR ', 'QTY_U_CURRENT_COMPONENT  ', 'UPDATE',\n'VVEL_CUR ', 'QTY_V_CURRENT_COMPONENT  ', 'UPDATE',\n'PSURF_CUR', 'QTY_SEA_SURFACE_PRESSURE ', 'UPDATE'\n"
       }
    },
    "location_nml": {
@@ -385,9 +372,7 @@
          "values": 0.6
       },
       "input_state_files": {
-         "values": {
-            "$DATA_ASSIMILATION_OCN == True and $COMP_OCN == \"pop\"": "'pop.r.nc'"
-         }
+         "values": "'mom6.r.nc'"
       },
       "single_file": {
          "values": ".false."
@@ -545,9 +530,7 @@
    },
    "model_mod_check_nml": {
       "input_state_files": {
-         "values": {
-            "$DATA_ASSIMILATION_OCN == True and $COMP_OCN == \"pop\"": "'pop.r.nc'"
-         }
+         "values": "'pop.r.nc'"
       },
       "output_state_files": {
          "values": "'mmc_output.nc'"

@@ -5,8 +5,11 @@ perfect_model_obs_nml:
   single_file_in:
     values: .false.
   input_state_files:
-    $DATA_ASSIMILATION_OCN == True and $COMP_OCN == "pop": #note
-      values: "'pop.r.nc'"
+    values:
+        $COMP_OCN == "mom6": #note
+            "mom6.r.nc'"
+        else:
+            "restart.nc"
   init_time_days:
     values: -1
   init_time_seconds:
@@ -56,8 +59,7 @@ filter_nml:
   adv_ens_command:
     values: "'no_CESM_advance_script'"
   ens_size:
-    $DATA_ASSIMILATION_OCN == True: #note
-      values: $NINST_OCN
+    values: $NINST_OCN
   obs_sequence_in_name:
     values: "'obs_seq.out'"
   obs_sequence_out_name:
@@ -81,8 +83,7 @@ filter_nml:
   num_output_state_members:
     values: 3,
   num_output_obs_members:
-    $DATA_ASSIMILATION_OCN == True:
-      values: $NINST_OCN
+    values: $NINST_OCN
   output_interval:
     values: 1
   num_groups:
@@ -208,7 +209,6 @@ obs_sequence_nml:
 
 obs_kind_nml:
   assimilate_these_obs_types:
-    $DATA_ASSIMILATION_OCN == True:
       values: |
         'SALINITY',         'TEMPERATURE',
                            'APB_SALINITY',     'APB_TEMPERATURE',
@@ -227,7 +227,6 @@ obs_kind_nml:
                            'XBT_SALINITY',     'XBT_TEMPERATURE',
                           'XCTD_SALINITY',    'XCTD_TEMPERATURE',
   evaluate_these_obs_types:
-    $DATA_ASSIMILATION_OCN == True:
       values: |
         'SEA_SURFACE_HEIGHT',
         'U_CURRENT_COMPONENT',
@@ -252,11 +251,9 @@ preprocess_nml:
     values: "'${SRCROOT}/components/dart/DART/observations/forward_operators/obs_def_mod.f90'"
   obs_type_files: 
     values:
-      $DATA_ASSIMILATION_OCN == True:
         "'${SRCROOT}/components/dart/DART/observations/forward_operators/obs_def_ocean_mod.f90'"
   quantity_files: 
     values: 
-      $DATA_ASSIMILATION_OCN == True:
         "'${SRCROOT}/components/dart/DART/assimilation_code/modules/observations/ocean_quantities_mod.f90'"
 # 
 model_nml:
@@ -273,7 +270,6 @@ model_nml:
   debug:
     values: 0
   model_state_variables:
-    $DATA_ASSIMILATION_OCN == True:
       values: |
          'SALT_CUR ', 'QTY_SALINITY             ', 'UPDATE',
          'TEMP_CUR ', 'QTY_POTENTIAL_TEMPERATURE', 'UPDATE',
@@ -316,8 +312,7 @@ fill_inflation_restart_nml:
 
   input_state_files:
     values:
-      $DATA_ASSIMILATION_OCN == True and $COMP_OCN == "pop":
-        "'pop.r.nc'"
+        "'mom6.r.nc'"
   single_file:
     values: .false.
   verbose:
@@ -489,7 +484,6 @@ obs_seq_to_netcdf_nml:
 model_mod_check_nml:
   input_state_files:
     values:
-      $DATA_ASSIMILATION_OCN == True and $COMP_OCN == "pop":
         "'pop.r.nc'"
   output_state_files:
     values: "'mmc_output.nc'"

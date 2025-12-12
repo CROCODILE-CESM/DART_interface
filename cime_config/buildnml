@@ -20,7 +20,6 @@ from CIME.utils import expect, symlink_force
 from CIME.buildnml import parse_input
 
 from dart_input_nml import DART_input_nml
-from dart_params import DART_params
 from dart_input_data_list import DART_input_data_list
 
 logger = logging.getLogger(__name__)
@@ -86,51 +85,45 @@ def buildnml(case, caseroot, compname):
             dartroot, "param_templates", "json", "input_nml.json"
         )
         input_nml = DART_input_nml.from_json(input_nml_template)
-        user_nl_dart = DART_input_nml.from_nml_file(
-            os.path.join(caseroot, "user_nl_dart")
-        )
+        ## HK todo no 'from_nml_file' in paramgen class
+        #user_nl_dart = DART_input_nml.from_nml_file(
+        #    os.path.join(caseroot, "user_nl_dart")
+        #)
 
-        # loop over all variables in user_nl_dart. For variables with unspecified namelist groups,
-        # determine their groups (if possible) and restore them accordingly
-        if "no_group" in user_nl_dart.data:
-            for var, values_dict in user_nl_dart.data["no_group"].items():
-                val = values_dict["values"]
-                var_group = None
-                for group in input_nml.data:
-                    if var in input_nml.data[group]:
-                        expect(
-                            var_group is None,
-                            f"In user_nl_dart, cannot determine which namelist group the variable "
-                            f" {var} belongs to. (There are be multiple variables with the same "
-                            f"name that belongs to more than one namelist groups.)",
-                        )
-                        var_group = group
-                expect(
-                    var_group is not None,
-                    f"In user_nl_dart, cannot determine which namelist group the variable "
-                    f" {var} belongs to. (No {var} was found in the default input.nml.",
-                )
-                if var_group not in user_nl_dart.data:
-                    user_nl_dart.data[var_group] = {}
-                user_nl_dart.data[var_group][var] = {"values": val}
+        ## loop over all variables in user_nl_dart. For variables with unspecified namelist groups,
+        ## determine their groups (if possible) and restore them accordingly
+        #if "no_group" in user_nl_dart.data:
+        #    for var, values_dict in user_nl_dart.data["no_group"].items():
+        #        val = values_dict["values"]
+        #        var_group = None
+        #        for group in input_nml.data:
+        #            if var in input_nml.data[group]:
+        #                expect(
+        #                    var_group is None,
+        #                    f"In user_nl_dart, cannot determine which namelist group the variable "
+        #                    f" {var} belongs to. (There are be multiple variables with the same "
+        #                    f"name that belongs to more than one namelist groups.)",
+        #                )
+        #                var_group = group
+        #        expect(
+        #            var_group is not None,
+        #            f"In user_nl_dart, cannot determine which namelist group the variable "
+        #            f" {var} belongs to. (No {var} was found in the default input.nml.",
+        #        )
+        #        if var_group not in user_nl_dart.data:
+        #            user_nl_dart.data[var_group] = {}
+        #        user_nl_dart.data[var_group][var] = {"values": val}
 
-            # drop 'no_group'. (All vars in 'no_group' are copied to their respective groups above.)
-            user_nl_dart.data.pop("no_group")
+        #    # drop 'no_group'. (All vars in 'no_group' are copied to their respective groups above.)
+        #    user_nl_dart.data.pop("no_group")
 
-        # apply user_nl changes to final input.nml
-        if len(user_nl_dart.data) > 0:
-            input_nml.append(user_nl_dart)
+        ## apply user_nl changes to final input.nml
+        #if len(user_nl_dart.data) > 0:
+        #    input_nml.append(user_nl_dart)
 
         input_nml.write(os.path.join(caseroot, "input.nml"), case)
 
         return input_nml
-
-    def gen_DART_params():
-        dart_params_template = os.path.join(
-            dartroot, "param_templates", "json", "DART_params.json"
-        )
-        dart_params = DART_params.from_json(dart_params_template)
-        dart_params.write(os.path.join(caseroot, "DART_params.csh"), case)
 
     def gen_input_data_list():
         input_data_list_template = os.path.join(
@@ -217,10 +210,8 @@ def buildnml(case, caseroot, compname):
     consistency_checks()
 
     # generate DART_input_nml
+    # HK todo user_nl_dart 
     input_nml = gen_DART_input_nml()
-
-    # generate DART_params.csh
-    gen_DART_params()
 
     # generate input_data_list file
     gen_input_data_list()

@@ -3,7 +3,7 @@ import os, sys, shutil
 _CIMEROOT = os.getenv("CIMEROOT")
 sys.path.append(os.path.join(_CIMEROOT, "scripts", "Tools"))
 
-from CIME.ParamGen.paramgen_nml import ParamGen
+from CIME.ParamGen.paramgen import ParamGen
 
 class DART_input_data_list(ParamGen):
     '''Stage DART input_data_list file'''
