@@ -57,63 +57,66 @@ def CESM_DART_config(case):
         expect(False, "Unsupported compset for DATA_ASSIMILATION.")
 
 
+    # HK do you always wat to set data assimilation to true?
     if data_assimilation['ocn'] is True:
 
         # DA to be applied to the ocn component only.
         expect(n_da_comp==1, "When OCN data assimilation is turned on, data assimilation "
                       "for all other comps must be turned off (just for now)")
 
-        if comp_ocn == "pop":
-
-            dart_executables = ['filter', 'perfect_model_obs', 'fill_inflation_restart']
-
-            # Make sure the DART executables exist or build them if we can't find them.
-            targetdir = os.path.join(exeroot,"esp")
-
-            if not all([os.path.exists(os.path.join(targetdir,executable)) for executable in dart_executables]):
-                logger.warning("DART executable(s) missing in build directory.\n"
-                               "Trying to (re)build all executables now")
-
-                expect(os.path.exists(os.path.join(caseroot,"input.nml")), \
-                       "cannot find DART input.nml in CASEROOT, which is needed for building DART executables")
-                
-                # Create a symbolic link of input.nml in bld dir
-                case_input_nml_path = os.path.join(caseroot, "input.nml") 
-                bld_input_nml_path = os.path.join(targetdir, "input.nml") 
-                if os.path.exists(bld_input_nml_path):
-                    os.remove(bld_input_nml_path)
-                logger.warning(f"linking input.nml from {case_input_nml_path} to {bld_input_nml_path}")
-                os.symlink(os.path.join(caseroot,"input.nml"), bld_input_nml_path)
-
-                # Write out a new quickbuild.sh in blddir based on the original quickbuild.sh script in core DART source.
-                # While doing so, change the relative DART path with the correct absolute DART path
-                orig_quickbuild_path = os.path.join(core_dartroot,"models","POP","work","quickbuild.sh")
-                new_quickbuild_path = os.path.join(targetdir,"quickbuild.sh")
-                with open(new_quickbuild_path,'w') as f:
-                    for line in open(orig_quickbuild_path,'r'):
-                        if not line.startswith('export DART='):
-                            f.write(line)
-                        else:
-                            f.write(f"export DART='{core_dartroot}'\n")
-
-                # Now, run the quickbuld.sh command
-                os.chdir(targetdir)
-                cmd = "sh ./quickbuild.sh"
-                rc, out, err = run_cmd(cmd)
-                logger.info("%s: \n\n output:\n %s \n\n err:\n\n%s\n"%(cmd,out,err))
-                expect(rc == 0, "Command %s failed with rc=%s" % (cmd, rc))
-
-            # Stage the DART executables in the CESM execution root directory
-            for executable in dart_executables:
-                shutil.copy(os.path.join(targetdir,executable), exeroot)
-
-            # Note: the remaining CESM_DART_config tasks are done in buildnml.
-
-        else:
-            expect(False, "Unsupported OCN component for data assimilation")
-
     else:
         expect(n_da_comp==0, "Unsupported combination of DATA_ASSIMILATION flags")
+
+    if comp_ocn == "mom":
+
+        dart_executables = ['filter', 'perfect_model_obs', 'fill_inflation_restart']
+
+        # Make sure the DART executables exist or build them if we can't find them.
+        targetdir = os.path.join(exeroot,"esp")
+
+        if not all([os.path.exists(os.path.join(targetdir,executable)) for executable in dart_executables]):
+            logger.warning("DART executable(s) missing in build directory.\n"
+                               "Trying to (re)build all executables now")
+
+            expect(os.path.exists(os.path.join(caseroot,"input.nml")), \
+                   "cannot find DART input.nml in CASEROOT, which is needed for building DART executables")
+                
+            # Create a symbolic link of input.nml in bld dir HK todo is this for preprocess?
+            case_input_nml_path = os.path.join(caseroot, "input.nml") 
+            bld_input_nml_path = os.path.join(targetdir, "input.nml") 
+            if os.path.exists(bld_input_nml_path):
+                os.remove(bld_input_nml_path)
+            logger.warning(f"linking input.nml from {case_input_nml_path} to {bld_input_nml_path}")
+            os.symlink(os.path.join(caseroot,"input.nml"), bld_input_nml_path)
+
+            # Write out a new quickbuild.sh in blddir based on the original quickbuild.sh script in core DART source.
+            # While doing so, change the relative DART path with the correct absolute DART path
+            orig_quickbuild_path = os.path.join(core_dartroot,"models","MOM","work","quickbuild.sh")
+            new_quickbuild_path = os.path.join(targetdir,"quickbuild.sh")
+            with open(new_quickbuild_path,'w') as f:
+                for line in open(orig_quickbuild_path,'r'):
+                    if not line.startswith('export DART='):
+                        f.write(line)
+                    else:
+                        f.write(f"export DART='{core_dartroot}'\n")
+
+            # Now, run the quickbuld.sh command
+            os.chdir(targetdir)
+            cmd = "sh ./quickbuild.sh"
+            rc, out, err = run_cmd(cmd)
+            logger.info("%s: \n\n output:\n %s \n\n err:\n\n%s\n"%(cmd,out,err))
+            expect(rc == 0, "Command %s failed with rc=%s" % (cmd, rc))
+
+        # Stage the DART executables in the CESM execution root directory
+        for executable in dart_executables:
+            shutil.copy(os.path.join(targetdir,executable), exeroot)
+
+        # Note: the remaining CESM_DART_config tasks are done in buildnml.
+
+    else:
+        expect(False, "Unsupported OCN component for data assimilation")
+
+
 
 
 def buildlib(caseroot, libroot, bldroot):
