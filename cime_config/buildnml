@@ -120,6 +120,7 @@ def buildnml(case, caseroot, compname):
         #if len(user_nl_dart.data) > 0:
         #    input_nml.append(user_nl_dart)
 
+        #HK why is this in the caseroot?
         input_nml.write(os.path.join(caseroot, "input.nml"), case)
 
         return input_nml

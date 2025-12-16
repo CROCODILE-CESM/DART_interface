@@ -27,7 +27,7 @@ def CESM_DART_config(case):
     advantage of CIME build infrastructure.
     '''
 
-    logger.info("Building DART executables using the conventional DART build routine.")
+    logger.info("Building DART executables using quickbuild.sh")
 
     dartroot = case.get_value("COMP_ROOT_DIR_ESP")
     core_dartroot = os.path.join(dartroot,"DART")
@@ -36,7 +36,6 @@ def CESM_DART_config(case):
     caseroot = case.get_value("CASEROOT")
     # get this directory to get input.nml and mkmf.template
     buildlib_dir = os.path.dirname(os.path.abspath(__file__))
-    logger.info("HELEN buildlib_dir {buildlib_dir}")
 
     # Number of model run - data assimilation steps to complete
     data_assimilation_cycles = case.get_value("DATA_ASSIMILATION_CYCLES")
@@ -53,7 +52,6 @@ def CESM_DART_config(case):
     compiler = case.get_value("COMPILER")
     build_templates_dir = os.path.join(buildlib_dir,os.pardir,"cesm_build_templates")
     mkmf_template = os.path.join(core_dartroot, "build_templates", "mkmf.template")
-    logger.info("HELEN build_templates_dir {build_templates_dir}")
     
     if compiler == "intel":
         shutil.copy(os.path.join(build_templates_dir, "mkmf.template.intel.linux"), mkmf_template)
@@ -70,9 +68,6 @@ def CESM_DART_config(case):
     if not all([os.path.exists(os.path.join(targetdir,executable)) for executable in dart_executables]):
         logger.warning("DART executable(s) missing in build directory.\n"
                        "Trying to (re)build all executables now")
-
-        expect(os.path.exists(os.path.join(caseroot,"input.nml")), \
-               "cannot find DART input.nml in CASEROOT, which is needed for building DART executables")
         
         # Create a symbolic link of preprocess_input.nml in bld dir
         preprocess_input_nml_path = os.path.join(build_templates_dir, "preprocess_input.nml") 
@@ -108,8 +103,7 @@ def CESM_DART_config(case):
     # Note: the remaining CESM_DART_config tasks are done in buildnml.
 
     else:
-        expect(n_da_comp==0, "Unsupported combination of DATA_ASSIMILATION flags")
-
+        logger.info("DART executables exist")
 
 def buildlib(caseroot, libroot, bldroot):
     '''The top-level buildlib function.'''
@@ -126,6 +120,7 @@ def buildlib(caseroot, libroot, bldroot):
         gmake = case.get_value("GMAKE")
 
         # create Filepath
+        # HK do we have to have source mods for DART?
         filepath_file = os.path.join(objroot, "esp", "obj", "Filepath")
         if not os.path.isfile(filepath_file):
             paths = [
