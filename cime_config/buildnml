@@ -24,8 +24,6 @@ from dart_input_data_list import DART_input_data_list
 
 logger = logging.getLogger(__name__)
 
-cesmtagmajor = "cesm2_1"  # TODO: Generalize this!
-
 # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
 ####################################################################################
 def buildnml(case, caseroot, compname):
@@ -50,6 +48,7 @@ def buildnml(case, caseroot, compname):
     comp_ocn = case.get_value("COMP_OCN")
     ninst_ocn = int(case.get_value("NINST_OCN"))
     calendar = case.get_value("CALENDAR")
+    buildnml_dir = os.path.dirname(os.path.abspath(__file__))
 
     # DATA_ASSIMILATION flag for each component
     data_assimilation = {
@@ -137,25 +136,14 @@ def buildnml(case, caseroot, compname):
 
         if data_assimilation["ocn"] is True:
 
-            if comp_ocn == "pop":
-                dart_model_dir = os.path.join(dartroot, "DART", "models", "POP")
+            # assimilation script 
+            assim_script  = os.path.join(buildnml_dir, "assimilate.py")
+            # HK does this have to be the case root?
+            shutil.copy(assim_script, caseroot)
+            case.set_value(
+                "DATA_ASSIMILATION_SCRIPT", os.path.join(caseroot, assim_script)
+            )
 
-                # assimilation script
-                assim_script = (
-                    "assimilate.csh" if ninst_ocn > 1 else "perfect_model.csh"
-                )
-                shutil.copy(
-                    os.path.join(
-                        dart_model_dir, "shell_scripts", cesmtagmajor, assim_script
-                    ),
-                    caseroot,
-                )
-                case.set_value(
-                    "DATA_ASSIMILATION_SCRIPT", os.path.join(caseroot, assim_script)
-                )
-
-            else:
-                expect(False, "Unsupported OCN component for data assimilation")
         else:
             expect(n_da_comp == 0, "Unsupported combination of DATA_ASSIMILATION flags")
 
@@ -164,42 +152,37 @@ def buildnml(case, caseroot, compname):
 
         if data_assimilation["ocn"] is True:
 
-            if comp_ocn == "pop":
+            # Stage the files needed for SAMPLING ERROR CORRECTION
+            # -------------------------------------------------------------------------
+            # TODO: copy below files to Buildconf/dartconf, and not to the caseroot
+            sampling_error_correction = input_nml.data["assim_tools_nml"][
+                "sampling_error_correction"
+            ]["values"]
+            if sampling_error_correction == ".true.":
 
-                # Stage the files needed for SAMPLING ERROR CORRECTION
-                # -------------------------------------------------------------------------
-                # TODO: copy below files to Buildconf/dartconf, and not to the caseroot
-                sampling_error_correction = input_nml.data["assim_tools_nml"][
-                    "sampling_error_correction"
-                ]["values"]
-                if sampling_error_correction == ".true.":
-
-                    samp_err_file = os.path.join(
-                        dartroot,
-                        "DART",
-                        "assimilation_code",
-                        "programs",
-                        "gen_sampling_err_table",
-                        "work",
-                        "sampling_error_correction_table.nc",
+                samp_err_file = os.path.join(
+                    dartroot,
+                    "DART",
+                    "assimilation_code",
+                    "programs",
+                    "gen_sampling_err_table",
+                    "work",
+                    "sampling_error_correction_table.nc",
+                )
+                if os.path.exists(samp_err_file):
+                    expect(
+                        3 <= ninst_ocn <= 200,
+                        f"sampling_error_correction_table.nc handles ensemble sizes 3...200. "
+                        f"Yours is {ninst_ocn}.",
                     )
-                    if os.path.exists(samp_err_file):
-                        expect(
-                            3 <= ninst_ocn <= 200,
-                            f"sampling_error_correction_table.nc handles ensemble sizes 3...200. "
-                            f"Yours is {ninst_ocn}.",
-                        )
-                        shutil.copy(samp_err_file, rundir)
-                    else:  # sampling_error_correction_table.nc file found
-                        expect(
-                            sampling_error_correction != ".true.",
-                            "No sampling_error_correction_table.nc file found...\n"
-                            "The input.nml:assim_tool_nml:sampling_error_correction "
-                            "is .true. so this file must exist.",
-                        )
-
-            else:
-                expect(False, "Unsupported OCN component for data assimilation")
+                    shutil.copy(samp_err_file, rundir)
+                else:  # sampling_error_correction_table.nc file found
+                    expect(
+                        sampling_error_correction != ".true.",
+                        "No sampling_error_correction_table.nc file found...\n"
+                        "The input.nml:assim_tool_nml:sampling_error_correction "
+                        "is .true. so this file must exist.",
+                    )
         else:
             expect(n_da_comp == 0, "Unsupported combination of DATA_ASSIMILATION flags")
 
@@ -222,6 +205,7 @@ def buildnml(case, caseroot, compname):
     # stage sampling error correction
     stage_sampling_error_correction(input_nml)
 
+    #HK what is this todo?
     ### create symbolic link to modify_namelist_templates.py in caseroot
     #todo mnt_path = os.path.join(caseroot, "modify_namelist_templates.py")
     #todo if not os.path.islink(mnt_path):
