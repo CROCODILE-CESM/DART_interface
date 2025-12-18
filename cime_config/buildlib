@@ -69,13 +69,18 @@ def CESM_DART_config(case):
         logger.warning("DART executable(s) missing in build directory.\n"
                        "Trying to (re)build all executables now")
         
-        # Create a symbolic link of preprocess_input.nml in bld dir
+        # create input.nml for preprocess 
         preprocess_input_nml_path = os.path.join(build_templates_dir, "preprocess_input.nml") 
         bld_input_nml_path = os.path.join(targetdir, "input.nml") 
-        if os.path.lexists(bld_input_nml_path):  # lexists will be true for broken symlinks
-            os.remove(bld_input_nml_path)
-        logger.info(f"linking {preprocess_input_nml_path} to {bld_input_nml_path}")
-        os.symlink(preprocess_input_nml_path, bld_input_nml_path)
+        logger.info(f"copying {preprocess_input_nml_path} to {bld_input_nml_path}")
+        shutil.copy(preprocess_input_nml_path, bld_input_nml_path)
+        # Replace DART_ROOT_DIR in input.nml with dartroot
+        with open(bld_input_nml_path, 'r') as f:
+            content = f.read()
+        content = content.replace('{DARTCORE_DIR}', core_dartroot)
+        with open(bld_input_nml_path, 'w') as f:
+            f.write(content)
+
 
         # Create quickbuild.sh for this case
         # While doing so, change the relative DART path with the correct absolute DART path
