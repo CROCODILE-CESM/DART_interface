@@ -97,15 +97,33 @@ def extract_namelist_defaults(filename):
                 if entity_decls is not None:
                     # Parse the entity declaration directly from string representation
                     decl_str = str(entity_decls)
-                    if '=' in decl_str:
-                        parts = decl_str.split('=', 1)
-                        var_name = parts[0].strip().lower()
-                        default_value = parts[1].strip()
-                        declarations[var_name] = default_value
+                    
+                    # Handle multiple variables on one line (comma-separated)
+                    if ',' in decl_str:
+                        # Split on commas and process each variable separately
+                        var_parts = decl_str.split(',')
+                        for i, var_part in enumerate(var_parts):
+                            var_part = var_part.strip()
+                            if '=' in var_part:
+                                parts = var_part.split('=', 1)
+                                var_name = parts[0].strip().lower()
+                                default_value = parts[1].strip()
+                                declarations[var_name] = default_value
+                            else:
+                                # No default value for this variable
+                                var_name = var_part.strip().lower()
+                                declarations[var_name] = None
                     else:
-                        # No default value
-                        var_name = decl_str.strip().lower()
-                        declarations[var_name] = None
+                        # Single variable declaration
+                        if '=' in decl_str:
+                            parts = decl_str.split('=', 1)
+                            var_name = parts[0].strip().lower()
+                            default_value = parts[1].strip()
+                            declarations[var_name] = default_value
+                        else:
+                            # No default value
+                            var_name = decl_str.strip().lower()
+                            declarations[var_name] = None
             except (IndexError, AttributeError, TypeError) as e:
                 # Skip problematic declarations
                 pass
