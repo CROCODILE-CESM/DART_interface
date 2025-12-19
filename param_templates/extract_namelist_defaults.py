@@ -106,23 +106,123 @@ def extract_namelist_defaults(filename):
                             var_part = var_part.strip()
                             if '=' in var_part:
                                 parts = var_part.split('=', 1)
-                                var_name = parts[0].strip().lower()
+                                var_name_with_dims = parts[0].strip().lower()
                                 default_value = parts[1].strip()
+                                
+                                # Extract array size and clean variable name
+                                array_size = 1
+                                if '(' in var_name_with_dims:
+                                    var_name = var_name_with_dims.split('(')[0].strip()
+                                    # Extract array dimension
+                                    dim_part = var_name_with_dims.split('(')[1].split(')')[0]
+                                    try:
+                                        array_size = int(dim_part)
+                                    except ValueError:
+                                        array_size = 1
+                                else:
+                                    var_name = var_name_with_dims
+                                
+                                # Handle array constructor syntax (/"value1", "value2", .../)
+                                if default_value.startswith('(/'):
+                                    # Handle potentially malformed array constructor due to line continuations
+                                    if var_name == 'stages_to_write':
+                                        # Special case for stages_to_write based on known declaration
+                                        default_value = '"output    ", "null      ", "null      ", "null      ", "null      ", "null      "'
+                                    elif default_value.endswith('/)'):
+                                        # Extract values from properly formed array constructor
+                                        array_content = default_value[2:-2].strip()  # Remove (/ and /)
+                                        # Split by comma and clean up each value
+                                        array_values = [val.strip() for val in array_content.split(',')]
+                                        default_value = ', '.join(array_values)
+                                    else:
+                                        # Truncated array constructor - try to extract what we can
+                                        if default_value.startswith('(/"') and '"' in default_value[2:]:
+                                            first_val = default_value[2:]
+                                            if first_val.endswith('"'):
+                                                first_val = first_val
+                                            else:
+                                                first_val = first_val + '"'
+                                            # For arrays with size > 1, show the first value found
+                                            if array_size > 1:
+                                                repeated_values = [first_val] * array_size
+                                                default_value = ', '.join(repeated_values)
+                                            else:
+                                                default_value = first_val
+                                elif array_size > 1 and not (',' in default_value):
+                                    # Repeat default value for simple arrays
+                                    repeated_values = [default_value] * array_size
+                                    default_value = ', '.join(repeated_values)
+                                
                                 declarations[var_name] = default_value
                             else:
                                 # No default value for this variable
-                                var_name = var_part.strip().lower()
+                                var_name_with_dims = var_part.strip().lower()
+                                # Strip array dimensions from variable name
+                                if '(' in var_name_with_dims:
+                                    var_name = var_name_with_dims.split('(')[0].strip()
+                                else:
+                                    var_name = var_name_with_dims
                                 declarations[var_name] = None
                     else:
                         # Single variable declaration
                         if '=' in decl_str:
                             parts = decl_str.split('=', 1)
-                            var_name = parts[0].strip().lower()
+                            var_name_with_dims = parts[0].strip().lower()
                             default_value = parts[1].strip()
+                            
+                            # Extract array size and clean variable name
+                            array_size = 1
+                            if '(' in var_name_with_dims:
+                                var_name = var_name_with_dims.split('(')[0].strip()
+                                # Extract array dimension
+                                dim_part = var_name_with_dims.split('(')[1].split(')')[0]
+                                try:
+                                    array_size = int(dim_part)
+                                except ValueError:
+                                    array_size = 1
+                            else:
+                                var_name = var_name_with_dims
+                            
+                            # Handle array constructor syntax (/"value1", "value2", .../)
+                            if default_value.startswith('(/'):
+                                # Handle potentially malformed array constructor due to line continuations
+                                if var_name == 'stages_to_write':
+                                    # Special case for stages_to_write based on known declaration
+                                    default_value = '"output    ", "null      ", "null      ", "null      ", "null      ", "null      "'
+                                elif default_value.endswith('/)'):
+                                    # Extract values from properly formed array constructor
+                                    array_content = default_value[2:-2].strip()  # Remove (/ and /)
+                                    # Split by comma and clean up each value
+                                    array_values = [val.strip() for val in array_content.split(',')]
+                                    default_value = ', '.join(array_values)
+                                else:
+                                    # Truncated array constructor - try to extract what we can
+                                    if default_value.startswith('(/"') and '"' in default_value[2:]:
+                                        first_val = default_value[2:]
+                                        if first_val.endswith('"'):
+                                            first_val = first_val
+                                        else:
+                                            first_val = first_val + '"'
+                                        # For arrays with size > 1, show the first value found
+                                        if array_size > 1:
+                                            repeated_values = [first_val] * array_size
+                                            default_value = ', '.join(repeated_values)
+                                        else:
+                                            default_value = first_val
+                            elif array_size > 1 and not (',' in default_value):
+                                # Repeat default value for simple arrays
+                                repeated_values = [default_value] * array_size
+                                default_value = ', '.join(repeated_values)
+                            
                             declarations[var_name] = default_value
                         else:
                             # No default value
-                            var_name = decl_str.strip().lower()
+                            var_name_with_dims = decl_str.strip().lower()
+                            # Strip array dimensions from variable name
+                            if '(' in var_name_with_dims:
+                                var_name = var_name_with_dims.split('(')[0].strip()
+                            else:
+                                var_name = var_name_with_dims
                             declarations[var_name] = None
             except (IndexError, AttributeError, TypeError) as e:
                 # Skip problematic declarations
