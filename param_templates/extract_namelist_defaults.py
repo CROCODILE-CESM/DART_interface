@@ -248,7 +248,7 @@ def extract_namelist_defaults(filename):
 def format_output(nml_defaults):
     """Format the output in namelist format."""
     if not nml_defaults:
-        print("No namelists found.")
+        #print("No namelists found.")
         return
     
     for nml_name, variables in nml_defaults.items():
