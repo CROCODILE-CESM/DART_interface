@@ -38,7 +38,11 @@ def extract_namelist_defaults(filename):
     
     # Truncate at 'contains' to avoid parsing executable code
     if 'contains' in src.lower():
-        src = src.split('contains')[0]
+        # Split and keep only the part before 'contains'
+        parts = src.lower().split('contains')
+        src = src[:len(parts[0])]  # Keep original case up to 'contains'
+        # Add end module to make it valid Fortran
+        src += '\nend module\n'
     
     try:
         # Parse the Fortran source
