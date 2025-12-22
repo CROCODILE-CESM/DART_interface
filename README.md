@@ -21,12 +21,20 @@ Tools in DART_interface:
 - extract_namelist_defaults.py : Extracts default namelist values from a Fortran source file.
 - process_makefile_f90.sh : Extract the .f90 files from a DART Makefile then call `extract_namelist_defaults.py` on each file to create a namelist defaults input.nml file for DART. 
 
+To create an input.nml from the DART source code, run
+
+```
+./process_makefile_f90.sh > input.nml 2>err     
+```
+
 The makefile Makefile.mom6.filter was created with the following commands:
 
 ```
 cd $DART_interface/DART/models/MOM6/work
 ./quickbuid.sh filter
 ```
+
+
 
 Errors out:  
   ERROR: When DART is active, the model calendar must be GREGORIAN.  
