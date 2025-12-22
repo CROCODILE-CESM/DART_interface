@@ -1,0 +1,197 @@
+&location_nml
+  horiz_dist_only = .TRUE.
+  vert_normalization_pressure = 100000.0_r8
+  vert_normalization_height = 10000.0_r8
+  vert_normalization_level = 20.0_r8
+  vert_normalization_scale_height = 5.0_r8
+  approximate_distance = .FALSE.
+  nlon = 71
+  nlat = 36
+  output_box_info = .FALSE.
+  print_box_level = 0
+  special_vert_normalization_obs_types = ! No default value found
+  special_vert_normalization_pressures = ! No default value found
+  special_vert_normalization_heights = ! No default value found
+  special_vert_normalization_levels = ! No default value found
+  special_vert_normalization_scale_heights = ! No default value found
+/
+
+&algorithm_info_nml
+  qceff_table_filename = ''
+/
+
+&assim_tools_nml
+  cutoff = 0.2_r8
+  sort_obs_inc = .TRUE.
+  spread_restoration = .FALSE.
+  sampling_error_correction = .FALSE.
+  adaptive_localization_threshold = - 1
+  adaptive_cutoff_floor = 0.0_r8
+  print_every_nth_obs = 0
+  rectangular_quadrature = .TRUE.
+  gaussian_likelihood_tails = .FALSE.
+  output_localization_diagnostics = .FALSE.
+  localization_diagnostics_file = "localization_diagnostics"
+  special_localization_obs_types = ! No default value found
+  special_localization_cutoffs = ! No default value found
+  distribute_mean = .FALSE.
+  close_obs_caching = .TRUE.
+  adjust_obs_impact = .FALSE.
+  obs_impact_filename = ''
+  allow_any_impact_values = .FALSE.
+  convert_all_state_verticals_first = .FALSE.
+  convert_all_obs_verticals_first = .TRUE.
+/
+
+&cov_cutoff_nml
+  select_localization = 1
+/
+
+&filter_nml
+  async = 0
+  adv_ens_command = './advance_model.csh'
+  ens_size = 20
+  tasks_per_model_advance = 1
+  output_members = .TRUE.
+  obs_sequence_in_name = "obs_seq.out"
+  obs_sequence_out_name = "obs_seq.final"
+  init_time_days = 0
+  init_time_seconds = 0
+  first_obs_days = - 1
+  first_obs_seconds = - 1
+  last_obs_days = - 1
+  last_obs_seconds = - 1
+  obs_window_days = - 1
+  obs_window_seconds = - 1
+  num_output_state_members = 0
+  num_output_obs_members = 0
+  output_interval = 1
+  num_groups = 1
+  trace_execution = .FALSE.
+  output_forward_op_errors = .FALSE.
+  output_timestamps = .FALSE.
+  inf_flavor = 0, 0
+  inf_initial_from_restart = .FALSE., .FALSE.
+  inf_sd_initial_from_restart = .FALSE., .FALSE.
+  inf_sd_max_change = 1.05_r8, 1.05_r8
+  inf_deterministic = .TRUE., .TRUE.
+  inf_damping = 1.0_r8, 1.0_r8
+  inf_initial = 1.0_r8, 1.0_r8
+  inf_sd_initial = 0.0_r8, 0.0_r8
+  inf_lower_bound = 1.0_r8, 1.0_r8
+  inf_upper_bound = 1000000.0_r8, 1000000.0_r8
+  inf_sd_lower_bound = 0.0_r8, 0.0_r8
+  silence = .FALSE.
+  distributed_state = .TRUE.
+  single_file_in = .FALSE.
+  single_file_out = .FALSE.
+  perturb_from_single_instance = .FALSE.
+  perturbation_amplitude = 0.2_r8
+  compute_posterior = .TRUE.
+  stages_to_write = "output    ", "null      ", "null      ", "null      ", "null      ", "null      "
+  input_state_files = ''
+  output_state_files = ''
+  output_state_file_list = ''
+  input_state_file_list = ''
+  output_mean = .TRUE.
+  output_sd = .TRUE.
+  write_all_stages_at_end = .FALSE.
+  write_obs_every_cycle = .FALSE.
+  allow_missing_clm = .FALSE.
+/
+
+&kde_nml
+  quadrature_order = 9
+/
+
+&probit_transform_nml
+  fix_bound_violations = .FALSE.
+  use_logit_instead_of_probit = .FALSE.
+  do_inverse_check = .FALSE.
+/
+
+&quality_control_nml
+  input_qc_threshold = 3.0_r8
+  outlier_threshold = - 1.0_r8
+  enable_special_outlier_code = .FALSE.
+/
+
+&reg_factor_nml
+  select_regression = 1
+  input_reg_file = "time_mean_reg"
+  save_reg_diagnostics = .FALSE.
+  reg_diagnostics_file = "reg_diagnostics"
+/
+
+&state_vector_io_nml
+  buffer_state_io = .FALSE.
+  single_precision_output = .FALSE.
+/
+
+&obs_kind_nml
+  assimilate_these_obs_types = 'null'
+  evaluate_these_obs_types = 'null'
+  use_precomputed_fos_these_obs_types = 'null'
+/
+
+&obs_sequence_nml
+  write_binary_obs_sequence = .FALSE.
+  read_binary_file_format = 'native'
+/
+
+&ensemble_manager_nml
+  communication_configuration = 1
+  layout = 1
+  tasks_per_node = 1
+  debug = .FALSE.
+/
+
+&mpi_utilities_nml
+  reverse_task_layout = .FALSE.
+  all_tasks_print = .FALSE.
+  verbose = .FALSE.
+  async2_verbose = .FALSE.
+  async4_verbose = .FALSE.
+  shell_name = ''
+  separate_node_sync = .FALSE.
+  create_local_comm = .TRUE.
+  make_copy_before_sendrecv = .FALSE.
+  make_copy_before_broadcast = .FALSE.
+/
+
+&schedule_nml
+  first_bin_start = (/1601
+  first_bin_end = (/2999
+  last_bin_end = (/2999
+  bin_interval_days = 1000000
+  bin_interval_seconds = 0
+  max_num_bins = 1000
+  calendar = 'Gregorian'
+  print_table = .FALSE.
+/
+
+&utilities_nml
+  termlevel = E_ERR
+  logfilename = 'dart_log.out'
+  module_details = .TRUE.
+  nmlfilename = 'dart_log.nml'
+  print_debug = .FALSE.
+  write_nml = 'file'
+/
+
+&model_nml
+  template_file = 'mom6.r.nc'
+  static_file = 'c.e22.GMOM.T62_g16.nuopc.001.mom6.static.nc'
+  ocean_geometry = 'ocean_geometry.nc'
+  assimilation_period_days = - 1
+  assimilation_period_seconds = - 1
+  model_state_variables = ' '
+  layer_name = 'Layer'
+  use_pseudo_depth = .FALSE.
+/
+
+&quad_interpolate_nml
+  do_rotate = .FALSE.
+  debug = 0
+/
+
