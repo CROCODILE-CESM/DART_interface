@@ -6,10 +6,18 @@ Uses fparser2 to parse Fortran source code and extract variable declarations and
 
 import re
 import sys
+import logging
 from fparser.two.parser import ParserFactory
 from fparser.two import Fortran2003 as f2003
 from fparser.common.readfortran import FortranStringReader
 
+# Configure logging
+logging.basicConfig(
+    level=logging.ERROR,  # Only show errors by default
+    format='%(levelname)s: %(message)s',
+    stream=sys.stderr
+)
+logger = logging.getLogger(__name__)
 
 def preprocess_fortran(src):
     """Preprocess Fortran source to handle common parsing issues."""
@@ -17,8 +25,9 @@ def preprocess_fortran(src):
     src = re.sub(r'(?i)end\s+do\s+\w+', 'end do', src)
     # Remove continuation characters that might cause issues
     src = re.sub(r'&\s*\n\s*&', ' ', src)
+    # Convert Doxygen-style comments to regular comments
+    src = re.sub(r'^!>.*$', '!', src, flags=re.MULTILINE)
     return src
-
 
 def extract_namelist_defaults(filename):
     """
@@ -30,8 +39,15 @@ def extract_namelist_defaults(filename):
     Returns:
         dict: Dictionary with namelist names as keys and variable:default pairs as values
     """
-    with open(filename, 'r') as f:
-        src = f.read()
+    try:
+        with open(filename, 'r') as f:
+            src = f.read()
+    except FileNotFoundError:
+        logger.error(f"File '{filename}' not found")
+        return {}
+    except Exception as e:
+        logger.error(f"Error reading file '{filename}': {e}")
+        return {}
     
     # Preprocess the source
     src = preprocess_fortran(src)
@@ -50,7 +66,7 @@ def extract_namelist_defaults(filename):
         reader = FortranStringReader(src)
         ast = parser(reader)
     except Exception as e:
-        print(f"Error parsing {filename}: {e}")
+        logger.error(f"Error parsing '{filename}': {e}")
         return {}
     
     namelists = {}
@@ -245,10 +261,10 @@ def extract_namelist_defaults(filename):
     return result
 
 
-def format_output(nml_defaults):
+def format_output(nml_defaults, filename):
     """Format the output in namelist format."""
     if not nml_defaults:
-        #print("No namelists found.")
+        logger.debug(f"No namelists found in '{filename}'")
         return
     
     for nml_name, variables in nml_defaults.items():
@@ -264,23 +280,31 @@ def format_output(nml_defaults):
 
 def main():
     """Main function to handle command line arguments and run extraction."""
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <fortran_file.f90>")
-        print("\nExtract namelist definitions and default values from Fortran source files.")
-        sys.exit(1)
+    # Add command line option for verbosity
+    import argparse
     
-    filename = sys.argv[1]
+    parser = argparse.ArgumentParser(description='Extract namelist definitions and default values from Fortran source files.')
+    parser.add_argument('filename', help='Fortran .f90 file to process')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose output')
+    parser.add_argument('-d', '--debug', action='store_true', help='Enable debug output')
+    
+    args = parser.parse_args()
+    
+    # Adjust logging level based on command line options
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+    elif args.verbose:
+        logging.getLogger().setLevel(logging.INFO)
     
     try:
-        nml_defaults = extract_namelist_defaults(filename)
-        format_output(nml_defaults)
-    except FileNotFoundError:
-        print(f"Error: File '{filename}' not found.")
+        nml_defaults = extract_namelist_defaults(args.filename)
+        format_output(nml_defaults, args.filename)
+    except KeyboardInterrupt:
+        logger.info("Process interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"Error processing file: {e}")
+        logger.error(f"Unexpected error processing '{args.filename}': {e}")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
