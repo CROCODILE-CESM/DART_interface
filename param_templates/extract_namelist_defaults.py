@@ -128,6 +128,7 @@ def extract_namelist_defaults(filename):
                                 parts = var_part.split('=', 1)
                                 var_name_with_dims = parts[0].strip().lower()
                                 default_value = parts[1].strip()
+                                default_value = clean_default_value(default_value)
                                 
                                 # Extract array size and clean variable name
                                 array_size = 1
@@ -189,6 +190,7 @@ def extract_namelist_defaults(filename):
                             parts = decl_str.split('=', 1)
                             var_name_with_dims = parts[0].strip().lower()
                             default_value = parts[1].strip()
+                            default_value = clean_default_value(default_value)
                             
                             # Extract array size and clean variable name
                             array_size = 1
@@ -276,6 +278,22 @@ def format_output(nml_defaults, filename):
                 print(f"  {var_name} = ! No default value found")
         print("/")
         print()
+
+
+def clean_default_value(value):
+    """Clean up formatting issues in default values."""
+    if value is None:
+        return None
+    
+    value_str = str(value)
+    # Remove spaces around unary minus for negative numbers
+    value_str = re.sub(r'- (\d+)', r'-\1', value_str)
+    # Remove spaces around unary minus for negative floats
+    value_str = re.sub(r'- (\d+\.\d+)', r'-\1', value_str)
+    # Remove spaces around unary minus for scientific notation
+    value_str = re.sub(r'- (\d+(?:\.\d+)?(?:_r8|_r4)?(?:[eE][+-]?\d+)?)', r'-\1', value_str)
+    
+    return value_str
 
 
 def main():

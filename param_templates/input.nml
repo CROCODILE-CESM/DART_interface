@@ -25,7 +25,7 @@
   sort_obs_inc = .TRUE.
   spread_restoration = .FALSE.
   sampling_error_correction = .FALSE.
-  adaptive_localization_threshold = - 1
+  adaptive_localization_threshold = -1
   adaptive_cutoff_floor = 0.0_r8
   print_every_nth_obs = 0
   rectangular_quadrature = .TRUE.
@@ -57,12 +57,12 @@
   obs_sequence_out_name = "obs_seq.final"
   init_time_days = 0
   init_time_seconds = 0
-  first_obs_days = - 1
-  first_obs_seconds = - 1
-  last_obs_days = - 1
-  last_obs_seconds = - 1
-  obs_window_days = - 1
-  obs_window_seconds = - 1
+  first_obs_days = -1
+  first_obs_seconds = -1
+  last_obs_days = -1
+  last_obs_seconds = -1
+  obs_window_days = -1
+  obs_window_seconds = -1
   num_output_state_members = 0
   num_output_obs_members = 0
   output_interval = 1
@@ -112,7 +112,7 @@
 
 &quality_control_nml
   input_qc_threshold = 3.0_r8
-  outlier_threshold = - 1.0_r8
+  outlier_threshold = -1.0_r8
   enable_special_outlier_code = .FALSE.
 /
 
@@ -183,8 +183,8 @@
   template_file = 'mom6.r.nc'
   static_file = 'c.e22.GMOM.T62_g16.nuopc.001.mom6.static.nc'
   ocean_geometry = 'ocean_geometry.nc'
-  assimilation_period_days = - 1
-  assimilation_period_seconds = - 1
+  assimilation_period_days = -1
+  assimilation_period_seconds = -1
   model_state_variables = ' '
   layer_name = 'Layer'
   use_pseudo_depth = .FALSE.
