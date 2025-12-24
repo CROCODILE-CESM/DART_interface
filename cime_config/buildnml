@@ -83,15 +83,12 @@ def buildnml(case, caseroot, compname):
         input_nml_template = os.path.join(
             dartroot, "param_templates", "json", "input_nml.json"
         )
-        logger.info(f"HELEN {input_nml_template}")
         input_nml = DART_input_nml.from_json(input_nml_template)
-        logger.info(f"HELEN {input_nml.data}")
         
         # Read user_nl_dart file and parse namelist
         user_nl_file = os.path.join(caseroot, "user_nl_dart")
         if os.path.exists(user_nl_file):
             user_nml = parse_fortran_namelist(user_nl_file)
-            
             # Update input_nml with values from user_nl_dart
             for namelist_name, namelist_vars in user_nml.items():
                 if namelist_name in input_nml.data:
@@ -106,8 +103,6 @@ def buildnml(case, caseroot, compname):
     
         dartconf = os.path.join(caseroot, "Buildconf", "dartconf")
         input_nml.write(os.path.join(dartconf, "input.nml"), case)
-        
-        return input_nml
 
     def parse_fortran_namelist(filepath):
         """Simple parser for Fortran namelist files."""
@@ -119,7 +114,6 @@ def buildnml(case, caseroot, compname):
         with open(filepath, 'r') as f:
             for line in f:
                 line = line.strip()
-                
                 # Skip empty lines and comments
                 if not line or line.startswith('!'):
                     continue
