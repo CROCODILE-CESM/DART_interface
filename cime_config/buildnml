@@ -86,22 +86,64 @@ def buildnml(case, caseroot, compname):
         logger.info(f"HELEN {input_nml_template}")
         input_nml = DART_input_nml.from_json(input_nml_template)
         logger.info(f"HELEN {input_nml.data}")
+        
+        # Read user_nl_dart file and parse namelist
+        user_nl_file = os.path.join(caseroot, "user_nl_dart")
+        if os.path.exists(user_nl_file):
+            user_nml = parse_fortran_namelist(user_nl_file)
+            
+            # Update input_nml with values from user_nl_dart
+            for namelist_name, namelist_vars in user_nml.items():
+                if namelist_name in input_nml.data:
+                    for var_name, var_value in namelist_vars.items():
+                        if var_name in input_nml.data[namelist_name]:
+                            # Update the value in input_nml
+                            input_nml.data[namelist_name][var_name]["values"] = var_value
+                        else:
+                            logger.warning(f"Variable {var_name} in {namelist_name} not found in template")
+                else:
+                    logger.warning(f"Namelist {namelist_name} not found in template")
+    
         dartconf = os.path.join(caseroot, "Buildconf", "dartconf")
-        input_nml.write(os.path.join(dartconf, "input.nml.try1"), case)
-
-        # HK todo no 'from_nml_file' in paramgen class
-        #user_nl_file = DART_input_nml.from_nml_file(
-        #    os.path.join(caseroot, "user_nl_dart")
-        #)
-
-        #namelist_infile = os.path.join(dartconf, "input.nml.try1")
-        #user_nl_file = os.path.join(caseroot, "user_nl_dart")
-        #create_namelist_infile(case, user_nl_file, namelist_infile)
-
-        #HK why is this in the caseroot?
-        #input_nml.write(os.path.join(caseroot, "input.nml.helen"), case)
-        #HK do you need this return?
+        input_nml.write(os.path.join(dartconf, "input.nml"), case)
+        
         return input_nml
+
+    def parse_fortran_namelist(filepath):
+        """Simple parser for Fortran namelist files."""
+        import re
+        
+        nml_dict = {}
+        current_nml = None
+        
+        with open(filepath, 'r') as f:
+            for line in f:
+                line = line.strip()
+                
+                # Skip empty lines and comments
+                if not line or line.startswith('!'):
+                    continue
+                
+                # Start of namelist
+                if line.startswith('&'):
+                    current_nml = line[1:].strip()
+                    nml_dict[current_nml] = {}
+                    continue
+                
+                # End of namelist
+                if line.startswith('/'):
+                    current_nml = None
+                    continue
+                
+                # Parse variable assignment
+                if current_nml and '=' in line:
+                    match = re.match(r'(\w+)\s*=\s*(.+)', line)
+                    if match:
+                        var_name = match.group(1).strip()
+                        var_value = match.group(2).strip().rstrip(',')
+                        nml_dict[current_nml][var_name] = var_value
+    
+        return nml_dict
 
     def gen_input_data_list():
         input_data_list_template = os.path.join(
