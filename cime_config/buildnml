@@ -70,14 +70,14 @@ def buildnml(case, caseroot, compname):
             calendar == "GREGORIAN",
             "When DART is active, the model calendar must be GREGORIAN.",
         )
-        if data_assimilation["ocn"] is True:
-            run_startdate = case.get_value("RUN_STARTDATE")
-            run_startyear = run_startdate[:4] 
-            expect(
-                2005 <= int(run_startyear) <= 2016, # todo: instead of startdate, check out enddate
-                "When ocean data assimilation is turned on, model date must be between 2005 and 2016 "
-                "to ensure availability of obs files."
-            )
+        #if data_assimilation["ocn"] is True:
+        #    run_startdate = case.get_value("RUN_STARTDATE")
+        #    run_startyear = run_startdate[:4] 
+        #    expect(
+        #        2005 <= int(run_startyear) <= 2016, # todo: instead of startdate, check out enddate
+        #        "When ocean data assimilation is turned on, model date must be between 2005 and 2016 "
+        #        "to ensure availability of obs files."
+        #    )
 
     def gen_DART_input_nml():
         input_nml_template = os.path.join(
@@ -101,8 +101,9 @@ def buildnml(case, caseroot, compname):
                 else:
                     logger.warning(f"Namelist {namelist_name} not found in template")
     
-        dartconf = os.path.join(caseroot, "Buildconf", "dartconf")
-        input_nml.write(os.path.join(dartconf, "input.nml"), case)
+        input_nml.write(os.path.join(confdir, "input.nml"), case)
+
+        return input_nml
 
     def parse_fortran_namelist(filepath):
         """Simple parser for Fortran namelist files."""
@@ -190,7 +191,7 @@ def buildnml(case, caseroot, compname):
                         f"sampling_error_correction_table.nc handles ensemble sizes 3...200. "
                         f"Yours is {ninst_ocn}.",
                     )
-                    shutil.copy(samp_err_file, rundir)
+                    shutil.copy(samp_err_file, confdir)
                 else:  # sampling_error_correction_table.nc file found
                     expect(
                         sampling_error_correction != ".true.",
@@ -208,27 +209,17 @@ def buildnml(case, caseroot, compname):
     consistency_checks()
 
     # generate DART_input_nml
-    # HK todo user_nl_dart 
     input_nml = gen_DART_input_nml()
 
     # generate input_data_list file
     gen_input_data_list()
 
     # set data_assimilation_script variable
-    set_data_assimilation_script()
+    #HK Todo create script
+    #set_data_assimilation_script()
 
-    # stage sampling error correction
+    # stage sampling error correction, needs info from input_nml
     stage_sampling_error_correction(input_nml)
-
-    #HK what is this todo?
-    ### create symbolic link to modify_namelist_templates.py in caseroot
-    #todo mnt_path = os.path.join(caseroot, "modify_namelist_templates.py")
-    #todo if not os.path.islink(mnt_path):
-    #todo     symlink_force(
-    #todo         os.path.join(dartroot, "cime_config", "modify_namelist_templates.py"),
-    #todo         os.path.join(caseroot, "modify_namelist_templates.py"),
-    #todo     )
-
 
 ###############################################################################
 def _main_func():
