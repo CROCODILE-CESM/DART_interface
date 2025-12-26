@@ -219,7 +219,7 @@ model_nml:
   layer_name:
     values: Layer
   model_state_variables:
-    values: ' '
+    values: ''
   ocean_geometry:
     values: ocean_geometry.nc
   static_file:
