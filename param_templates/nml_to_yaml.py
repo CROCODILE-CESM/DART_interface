@@ -10,6 +10,9 @@ def wrap_in_values(data):
     if isinstance(data, dict):
         return {key: wrap_in_values(val) for key, val in data.items()}
     else:
+        # Clean up string values - convert ' ' to ''
+        if isinstance(data, str) and data.strip() == '':
+            data = ''
         # Leaf node - wrap it
         return {'values': data}
 
