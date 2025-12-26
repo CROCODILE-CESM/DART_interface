@@ -293,6 +293,9 @@ def clean_default_value(value):
     # Remove spaces around unary minus for scientific notation
     value_str = re.sub(r'- (\d+(?:\.\d+)?(?:_r8|_r4)?(?:[eE][+-]?\d+)?)', r'-\1', value_str)
     
+    # Remove Fortran kind specifiers (_r8, _r4, _digits12, etc.)
+    value_str = re.sub(r'_(r[0-9]+|digits[0-9]+)', '', value_str)
+    
     return value_str
 
 

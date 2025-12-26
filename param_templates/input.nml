@@ -1,9 +1,9 @@
 &location_nml
   horiz_dist_only = .FALSE.
-  vert_normalization_pressure = 100000.0_r8
-  vert_normalization_height = 10000.0_r8
-  vert_normalization_level = 20.0_r8
-  vert_normalization_scale_height = 5.0_r8
+  vert_normalization_pressure = 100000.0
+  vert_normalization_height = 10000.0
+  vert_normalization_level = 20.0
+  vert_normalization_scale_height = 5.0
   approximate_distance = .FALSE.
   nlon = 71
   nlat = 36
@@ -21,12 +21,12 @@
 /
 
 &assim_tools_nml
-  cutoff = 0.2_r8
+  cutoff = 0.2
   sort_obs_inc = .TRUE.
   spread_restoration = .FALSE.
   sampling_error_correction = .FALSE.
   adaptive_localization_threshold = -1
-  adaptive_cutoff_floor = 0.0_r8
+  adaptive_cutoff_floor = 0.0
   print_every_nth_obs = 0
   rectangular_quadrature = .TRUE.
   gaussian_likelihood_tails = .FALSE.
@@ -70,20 +70,20 @@
   inf_flavor = 0, 0
   inf_initial_from_restart = .FALSE., .FALSE.
   inf_sd_initial_from_restart = .FALSE., .FALSE.
-  inf_sd_max_change = 1.05_r8, 1.05_r8
+  inf_sd_max_change = 1.05, 1.05
   inf_deterministic = .TRUE., .TRUE.
-  inf_damping = 1.0_r8, 1.0_r8
-  inf_initial = 1.0_r8, 1.0_r8
-  inf_sd_initial = 0.0_r8, 0.0_r8
-  inf_lower_bound = 1.0_r8, 1.0_r8
-  inf_upper_bound = 1000000.0_r8, 1000000.0_r8
-  inf_sd_lower_bound = 0.0_r8, 0.0_r8
+  inf_damping = 1.0, 1.0
+  inf_initial = 1.0, 1.0
+  inf_sd_initial = 0.0, 0.0
+  inf_lower_bound = 1.0, 1.0
+  inf_upper_bound = 1000000.0, 1000000.0
+  inf_sd_lower_bound = 0.0, 0.0
   silence = .FALSE.
   distributed_state = .TRUE.
   single_file_in = .FALSE.
   single_file_out = .FALSE.
   perturb_from_single_instance = .FALSE.
-  perturbation_amplitude = 0.2_r8
+  perturbation_amplitude = 0.2
   compute_posterior = .TRUE.
   stages_to_write = "output    ", "null      ", "null      ", "null      ", "null      ", "null      "
   input_state_files = ''
@@ -108,8 +108,8 @@
 /
 
 &quality_control_nml
-  input_qc_threshold = 3.0_r8
-  outlier_threshold = -1.0_r8
+  input_qc_threshold = 3.0
+  outlier_threshold = -1.0
   enable_special_outlier_code = .FALSE.
 /
 
