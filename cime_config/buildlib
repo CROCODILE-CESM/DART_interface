@@ -93,6 +93,26 @@ def CESM_DART_config(case):
                 else:
                     f.write(f"export DART='{core_dartroot}'\n")
 
+
+        # Modify mkmf to use parallel make
+        mkmf_path = os.path.join(core_dartroot, "build_templates", "mkmf")
+        if os.path.exists(mkmf_path):
+            # Read the original mkmf file
+            with open(mkmf_path, 'r') as f:
+                mkmf_content = f.read()
+            
+            # Replace the exec make to include -j 8
+            old_line = "exec 'make', '-f', $opt_m if $opt_x;"
+            new_line = "exec 'make', '-j', '8', '-f', $opt_m if $opt_x;"
+            
+            mkmf_content = mkmf_content.replace(old_line, new_line)
+            
+            # Write back the modified content
+            with open(mkmf_path, 'w') as f:
+                f.write(mkmf_content)
+            
+            logger.info("Modified mkmf to use -j 8")
+
         # Now, run the quickbuld.sh command
         os.chdir(targetdir)
         cmd = "sh ./quickbuild.sh"
