@@ -12,5 +12,16 @@ class DART_input_nml(ParamGen):
     def write(self, output_path, case):
         # From the general template (input_nml.yaml), reduce a custom input.nml for this case
         self.reduce(lambda varname: case.get_value(varname))
+        # Convert lists to comma-separated strings for Fortran format
+        self._convert_lists_to_strings(self._data)
         # write the data in namelist format
         self.write_nml(output_path)
+
+    def _convert_lists_to_strings(self, data):
+        """Recursively convert lists to comma-separated strings."""
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if isinstance(value, list):
+                    data[key] = ', '.join(str(item) for item in value)
+                elif isinstance(value, dict):
+                    self._convert_lists_to_strings(value)
