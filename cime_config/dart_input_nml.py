@@ -18,10 +18,20 @@ class DART_input_nml(ParamGen):
         self.write_nml(output_path)
 
     def _convert_lists_to_strings(self, data):
-        """Recursively convert lists to comma-separated strings."""
+        """Recursively convert lists to comma-separated strings and booleans to Fortran format."""
         if isinstance(data, dict):
             for key, value in data.items():
-                if isinstance(value, list):
-                    data[key] = ', '.join(str(item) for item in value)
+                if isinstance(value, bool):
+                    # Convert Python bool to Fortran bool
+                    data[key] = '.true.' if value else '.false.'
+                elif isinstance(value, list):
+                    # Convert list items, including booleans
+                    converted_items = []
+                    for item in value:
+                        if isinstance(item, bool):
+                            converted_items.append('.true.' if item else '.false.')
+                        else:
+                            converted_items.append(str(item))
+                    data[key] = ', '.join(converted_items)
                 elif isinstance(value, dict):
                     self._convert_lists_to_strings(value)
