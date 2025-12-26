@@ -25,6 +25,9 @@ class DART_input_nml(ParamGen):
                 if isinstance(value, bool):
                     # Convert Python bool to Fortran bool
                     data[key] = '.true.' if value else '.false.'
+                elif isinstance(value, (int, float)):
+                    # Keep numbers as-is (don't convert to string)
+                    pass
                 elif isinstance(value, str) and value == '':
                     # Convert empty string to Fortran empty string
                     data[key] = "''"
