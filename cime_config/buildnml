@@ -205,7 +205,6 @@ def buildnml(case, caseroot, compname):
 
             # Stage the files needed for SAMPLING ERROR CORRECTION
             # -------------------------------------------------------------------------
-            # TODO: copy below files to Buildconf/dartconf, and not to the caseroot
             sampling_error_correction = input_nml.data["assim_tools_nml"][
                 "sampling_error_correction"
             ]["values"]
