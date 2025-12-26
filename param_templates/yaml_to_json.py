@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-YAML to JSON converter for MOM_Interface developers. This script is intented to be used for
-converting default parameter files from yaml to json, since yaml is not a part of the standarti
+YAML to JSON converter for MOM_Interface developers. This script is intended to be used for
+converting default parameter files from yaml to json, since yaml is not a part of the standard
 Python library. The script should be used to update default.json whenever default.yaml file is 
 modified. Adapted from the corresponding MARBL tool.
 """
@@ -10,7 +10,7 @@ modified. Adapted from the corresponding MARBL tool.
 import sys, os, logging
 import argparse
 
-parser = argparse.ArgumentParser(description="Convert MOM6 Runtime Parameter System file templates from"
+parser = argparse.ArgumentParser(description="Convert DART Runtime Parameter file templates from"
                                              " YAML files to JSON")
 
 parser.add_argument('-d', default='./',

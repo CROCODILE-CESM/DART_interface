@@ -1,578 +1,208 @@
 {
-   "perfect_model_obs_nml": {
-      "read_input_state_from_file": {
-         "values": ".true."
-      },
-      "single_file_in": {
-         "values": ".false."
-      },
-      "input_state_files": {
-         "values": {
-            "$COMP_OCN == \"mom6\"": "mom6.r.nc'",
-            "else": "restart.nc"
-         }
-      },
-      "init_time_days": {
-         "values": -1
-      },
-      "init_time_seconds": {
-         "values": -1
-      },
-      "write_output_state_to_file": {
-         "values": ".true."
-      },
-      "single_file_out": {
-         "values": ".false."
-      },
-      "output_state_files": {
-         "values": "'perfect_restart.nc'"
-      },
-      "output_interval": {
-         "values": 1
-      },
-      "async": {
-         "values": 0
-      },
-      "adv_ens_command": {
-         "values": "'no_CESM_advance_script'"
-      },
-      "obs_seq_in_file_name": {
-         "values": "'obs_seq.in'"
-      },
-      "obs_seq_out_file_name": {
-         "values": "'obs_seq.perfect'"
-      },
-      "first_obs_days": {
-         "values": -1
-      },
-      "first_obs_seconds": {
-         "values": -1
-      },
-      "last_obs_days": {
-         "values": -1
-      },
-      "last_obs_seconds": {
-         "values": -1
-      },
-      "trace_execution": {
-         "values": ".false."
-      },
-      "output_timestamps": {
-         "values": ".false."
-      },
-      "print_every_nth_obs": {
-         "values": -1
-      },
-      "output_forward_op_errors": {
-         "values": ".false."
-      },
-      "silence": {
-         "values": ".false."
-      }
+   "location_nml": {
+      "horiz_dist_only": false,
+      "vert_normalization_pressure": "100000.0_r8",
+      "vert_normalization_height": "10000.0_r8",
+      "vert_normalization_level": "20.0_r8",
+      "vert_normalization_scale_height": "5.0_r8",
+      "approximate_distance": false,
+      "nlon": 71,
+      "nlat": 36,
+      "output_box_info": false,
+      "print_box_level": 0,
+      "special_vert_normalization_obs_types": "",
+      "special_vert_normalization_pressures": "",
+      "special_vert_normalization_heights": "",
+      "special_vert_normalization_levels": "",
+      "special_vert_normalization_scale_heights": ""
    },
-   "filter_nml": {
-      "async": {
-         "values": 0
-      },
-      "adv_ens_command": {
-         "values": "'no_CESM_advance_script'"
-      },
-      "ens_size": {
-         "values": "$NINST_OCN"
-      },
-      "obs_sequence_in_name": {
-         "values": "'obs_seq.out'"
-      },
-      "obs_sequence_out_name": {
-         "values": "'obs_seq.final'"
-      },
-      "input_state_file_list": {
-         "values": "'restarts_in.txt'"
-      },
-      "output_state_file_list": {
-         "values": "'restarts_out.txt'"
-      },
-      "init_time_days": {
-         "values": -1
-      },
-      "init_time_seconds": {
-         "values": -1
-      },
-      "first_obs_days": {
-         "values": -1
-      },
-      "first_obs_seconds": {
-         "values": -1
-      },
-      "last_obs_days": {
-         "values": -1
-      },
-      "last_obs_seconds": {
-         "values": -1
-      },
-      "num_output_state_members": {
-         "values": "3,"
-      },
-      "num_output_obs_members": {
-         "values": "$NINST_OCN"
-      },
-      "output_interval": {
-         "values": 1
-      },
-      "num_groups": {
-         "values": 1
-      },
-      "distributed_state": {
-         "values": ".true."
-      },
-      "compute_posterior": {
-         "values": ".true."
-      },
-      "output_forward_op_errors": {
-         "values": ".false."
-      },
-      "output_timestamps": {
-         "values": ".false."
-      },
-      "trace_execution": {
-         "values": ".false."
-      },
-      "silence": {
-         "values": ".false."
-      },
-      "stages_to_write": {
-         "values": "'preassim', 'output'"
-      },
-      "output_members": {
-         "values": ".true."
-      },
-      "output_mean": {
-         "values": ".true."
-      },
-      "output_sd": {
-         "values": ".true."
-      },
-      "write_all_stages_at_end": {
-         "values": ".true."
-      },
-      "inf_flavor": {
-         "values": "5,                       0"
-      },
-      "inf_initial_from_restart": {
-         "values": ".false.,                  .false."
-      },
-      "inf_sd_initial_from_restart": {
-         "values": ".false.,                  .false."
-      },
-      "inf_initial": {
-         "values": "1.0,                     1.0"
-      },
-      "inf_lower_bound": {
-         "values": "0.0,                     0.0"
-      },
-      "inf_upper_bound": {
-         "values": "10.0,                    10.0"
-      },
-      "inf_damping": {
-         "values": "0.9,                     0.9"
-      },
-      "inf_sd_initial": {
-         "values": "0.6,                     0.6"
-      },
-      "inf_sd_lower_bound": {
-         "values": "0.6,                     0.6"
-      },
-      "inf_sd_max_change": {
-         "values": "1.05,                    1.05"
-      }
-   },
-   "state_vector_io_nml": {
-      "buffer_state_io": {
-         "values": {
-            "$OCN_GRID in [\"tx0.1v2\", \"tx0.1v3\"]": ".true.",
-            "else": ".false."
-         }
-      },
-      "single_precision_output": {
-         "values": ".false."
-      }
+   "algorithm_info_nml": {
+      "qceff_table_filename": ""
    },
    "assim_tools_nml": {
-      "filter_kind": {
-         "values": 1
-      },
-      "cutoff": {
-         "values": 0.2
-      },
-      "sort_obs_inc": {
-         "values": ".false."
-      },
-      "spread_restoration": {
-         "values": ".false."
-      },
-      "sampling_error_correction": {
-         "values": ".false."
-      },
-      "adaptive_localization_threshold": {
-         "values": -1
-      },
-      "output_localization_diagnostics": {
-         "values": ".false."
-      },
-      "localization_diagnostics_file": {
-         "values": "'localization_diagnostics'"
-      },
-      "print_every_nth_obs": {
-         "values": 0
-      },
-      "distribute_mean": {
-         "values": {
-            "$OCN_GRID in [\"tx0.1v2\", \"tx0.1v3\"]": ".true.",
-            "else": ".false."
-         }
-      }
-   },
-   "ensemble_manager_nml": {
-      "tasks_per_node": {
-         "values": 16
-      },
-      "layout": {
-         "values": 2
-      }
+      "cutoff": "0.2_r8",
+      "sort_obs_inc": true,
+      "spread_restoration": false,
+      "sampling_error_correction": false,
+      "adaptive_localization_threshold": -1,
+      "adaptive_cutoff_floor": "0.0_r8",
+      "print_every_nth_obs": 0,
+      "rectangular_quadrature": true,
+      "gaussian_likelihood_tails": false,
+      "output_localization_diagnostics": false,
+      "localization_diagnostics_file": "localization_diagnostics",
+      "special_localization_obs_types": null,
+      "special_localization_cutoffs": null,
+      "distribute_mean": false,
+      "close_obs_caching": true,
+      "adjust_obs_impact": false,
+      "obs_impact_filename": "",
+      "allow_any_impact_values": false,
+      "convert_all_state_verticals_first": false,
+      "convert_all_obs_verticals_first": true
    },
    "cov_cutoff_nml": {
-      "select_localization": {
-         "values": 1
-      }
+      "select_localization": 1
    },
-   "reg_factor_nml": {
-      "select_regression": {
-         "values": 1
-      },
-      "input_reg_file": {
-         "values": "'time_mean_reg'"
-      },
-      "save_reg_diagnostics": {
-         "values": ".false."
-      },
-      "reg_diagnostics_file": {
-         "values": "'reg_diagnostics'"
-      }
+   "filter_nml": {
+      "ens_size": 20,
+      "output_members": true,
+      "obs_sequence_in_name": "obs_seq.out",
+      "obs_sequence_out_name": "obs_seq.final",
+      "init_time_days": 0,
+      "init_time_seconds": 0,
+      "first_obs_days": -1,
+      "first_obs_seconds": -1,
+      "last_obs_days": -1,
+      "last_obs_seconds": -1,
+      "obs_window_days": -1,
+      "obs_window_seconds": -1,
+      "num_output_state_members": 0,
+      "num_output_obs_members": 0,
+      "output_interval": 1,
+      "num_groups": 1,
+      "trace_execution": false,
+      "output_forward_op_errors": false,
+      "output_timestamps": false,
+      "inf_flavor": [
+         0,
+         0
+      ],
+      "inf_initial_from_restart": [
+         false,
+         false
+      ],
+      "inf_sd_initial_from_restart": [
+         false,
+         false
+      ],
+      "inf_sd_max_change": [
+         "1.05_r8",
+         "1.05_r8"
+      ],
+      "inf_deterministic": [
+         true,
+         true
+      ],
+      "inf_damping": [
+         "1.0_r8",
+         "1.0_r8"
+      ],
+      "inf_initial": [
+         "1.0_r8",
+         "1.0_r8"
+      ],
+      "inf_sd_initial": [
+         "0.0_r8",
+         "0.0_r8"
+      ],
+      "inf_lower_bound": [
+         "1.0_r8",
+         "1.0_r8"
+      ],
+      "inf_upper_bound": [
+         "1000000.0_r8",
+         "1000000.0_r8"
+      ],
+      "inf_sd_lower_bound": [
+         "0.0_r8",
+         "0.0_r8"
+      ],
+      "silence": false,
+      "distributed_state": true,
+      "single_file_in": false,
+      "single_file_out": false,
+      "perturb_from_single_instance": false,
+      "perturbation_amplitude": "0.2_r8",
+      "compute_posterior": true,
+      "stages_to_write": [
+         "output    ",
+         "null      ",
+         "null      ",
+         "null      ",
+         "null      ",
+         "null      "
+      ],
+      "input_state_files": "",
+      "output_state_files": "",
+      "output_state_file_list": "",
+      "input_state_file_list": "",
+      "output_mean": true,
+      "output_sd": true,
+      "write_all_stages_at_end": false,
+      "write_obs_every_cycle": false,
+      "allow_missing_clm": false
    },
-   "obs_sequence_nml": {
-      "write_binary_obs_sequence": {
-         "values": ".false."
-      }
+   "kde_nml": {
+      "quadrature_order": 9
    },
-   "obs_kind_nml": {
-      "assimilate_these_obs_types": {
-         "values": "'SALINITY',         'TEMPERATURE',\n                   'APB_SALINITY',     'APB_TEMPERATURE',\n                  'ADCP_SALINITY',    'ADCP_TEMPERATURE',\n                  'ARGO_SALINITY',    'ARGO_TEMPERATURE',\n                'BOTTLE_SALINITY',  'BOTTLE_TEMPERATURE',\n                   'CTD_SALINITY',     'CTD_TEMPERATURE',\n                   'DBT_SALINITY',     'DBT_TEMPERATURE',\n               'DRIFTER_SALINITY', 'DRIFTER_TEMPERATURE',\n                 'FLOAT_SALINITY',   'FLOAT_TEMPERATURE',\n                'GLIDER_SALINITY',  'GLIDER_TEMPERATURE',\n                   'MBT_SALINITY',     'MBT_TEMPERATURE',\n               'MOORING_SALINITY', 'MOORING_TEMPERATURE',\n                   'STD_SALINITY',     'STD_TEMPERATURE',\n                  'TCTD_SALINITY',    'TCTD_TEMPERATURE',\n                   'XBT_SALINITY',     'XBT_TEMPERATURE',\n                  'XCTD_SALINITY',    'XCTD_TEMPERATURE',\n"
-      },
-      "evaluate_these_obs_types": {
-         "values": "'SEA_SURFACE_HEIGHT',\n'U_CURRENT_COMPONENT',\n'V_CURRENT_COMPONENT'\n"
-      }
+   "probit_transform_nml": {
+      "fix_bound_violations": false,
+      "use_logit_instead_of_probit": false,
+      "do_inverse_check": false
    },
    "quality_control_nml": {
-      "input_qc_threshold": {
-         "values": 1.0
-      },
-      "enable_special_outlier_code": {
-         "values": ".false."
-      },
-      "outlier_threshold": {
-         "values": 3.0
-      }
+      "input_qc_threshold": "3.0_r8",
+      "outlier_threshold": "-1.0_r8",
+      "enable_special_outlier_code": false
    },
-   "preprocess_nml": {
-      "input_obs_qty_mod_file": {
-         "values": "'${SRCROOT}/components/dart/DART/assimilation_code/modules/observations/DEFAULT_obs_kind_mod.F90'"
-      },
-      "output_obs_qty_mod_file": {
-         "values": "'${SRCROOT}/components/dart/DART/assimilation_code/modules/observations/obs_kind_mod.f90'"
-      },
-      "input_obs_def_mod_file": {
-         "values": "'${SRCROOT}/components/dart/DART/observations/forward_operators/DEFAULT_obs_def_mod.F90'"
-      },
-      "output_obs_def_mod_file": {
-         "values": "'${SRCROOT}/components/dart/DART/observations/forward_operators/obs_def_mod.f90'"
-      },
-      "obs_type_files": {
-         "values": "'${SRCROOT}/components/dart/DART/observations/forward_operators/obs_def_ocean_mod.f90'"
-      },
-      "quantity_files": {
-         "values": "'${SRCROOT}/components/dart/DART/assimilation_code/modules/observations/ocean_quantities_mod.f90'"
-      }
+   "reg_factor_nml": {
+      "select_regression": 1,
+      "input_reg_file": "time_mean_reg",
+      "save_reg_diagnostics": false,
+      "reg_diagnostics_file": "reg_diagnostics"
    },
-   "model_nml": {
-      "assimilation_period_days": {
-         "values": -1
-      },
-      "assimilation_period_seconds": {
-         "values": -1
-      },
-      "model_perturbation_amplitude": {
-         "values": 0.2
-      },
-      "binary_grid_file_format": {
-         "values": "'big_endian'"
-      },
-      "mdt_reference_file_name": {
-         "values": "'none'"
-      },
-      "debug": {
-         "values": 0
-      },
-      "model_state_variables": {
-         "values": "'SALT_CUR ', 'QTY_SALINITY             ', 'UPDATE',\n'TEMP_CUR ', 'QTY_POTENTIAL_TEMPERATURE', 'UPDATE',\n'UVEL_CUR ', 'QTY_U_CURRENT_COMPONENT  ', 'UPDATE',\n'VVEL_CUR ', 'QTY_V_CURRENT_COMPONENT  ', 'UPDATE',\n'PSURF_CUR', 'QTY_SEA_SURFACE_PRESSURE ', 'UPDATE'\n"
-      }
+   "state_vector_io_nml": {
+      "buffer_state_io": false,
+      "single_precision_output": false
    },
-   "location_nml": {
-      "horiz_dist_only": {
-         "values": ".true."
-      },
-      "vert_normalization_pressure": {
-         "values": 100000.0
-      },
-      "vert_normalization_height": {
-         "values": 10000.0
-      },
-      "vert_normalization_level": {
-         "values": 20.0
-      },
-      "approximate_distance": {
-         "values": ".false."
-      },
-      "nlon": {
-         "values": 71
-      },
-      "nlat": {
-         "values": 36
-      },
-      "output_box_info": {
-         "values": ".true."
-      }
+   "obs_kind_nml": {
+      "assimilate_these_obs_types": "null",
+      "evaluate_these_obs_types": "null",
+      "use_precomputed_fos_these_obs_types": "null"
    },
-   "fill_inflation_restart_nml": {
-      "write_prior_inf": {
-         "values": ".true."
-      },
-      "prior_inf_mean": {
-         "values": 1.01
-      },
-      "prior_inf_sd": {
-         "values": 0.6
-      },
-      "write_post_inf": {
-         "values": ".false."
-      },
-      "post_inf_mean": {
-         "values": 1.0
-      },
-      "post_inf_sd": {
-         "values": 0.6
-      },
-      "input_state_files": {
-         "values": "'mom6.r.nc'"
-      },
-      "single_file": {
-         "values": ".false."
-      },
-      "verbose": {
-         "values": ".false."
-      }
+   "obs_sequence_nml": {
+      "write_binary_obs_sequence": false,
+      "read_binary_file_format": "native"
+   },
+   "ensemble_manager_nml": {
+      "communication_configuration": 1,
+      "layout": 1,
+      "tasks_per_node": 1,
+      "debug": false
+   },
+   "mpi_utilities_nml": {
+      "reverse_task_layout": false,
+      "all_tasks_print": false,
+      "verbose": false,
+      "async2_verbose": false,
+      "async4_verbose": false,
+      "shell_name": "",
+      "separate_node_sync": false,
+      "create_local_comm": true,
+      "make_copy_before_sendrecv": false,
+      "make_copy_before_broadcast": false
    },
    "utilities_nml": {
-      "TERMLEVEL": {
-         "values": 1
-      },
-      "module_details": {
-         "values": ".false."
-      },
-      "logfilename": {
-         "values": "'dart_log.out'"
-      },
-      "nmlfilename": {
-         "values": "'dart_log.nml'"
-      }
+      "termlevel": "E_ERR",
+      "logfilename": "dart_log.out",
+      "module_details": false,
+      "nmlfilename": "dart_log.nml",
+      "print_debug": false,
+      "write_nml": "file"
    },
-   "obs_sequence_tool_nml": {
-      "num_input_files": {
-         "values": 7
-      },
-      "filename_seq": {
-         "values": "'../observations/ssh_pseudo.obs_seq.out',\n'../observations/gliders_t_pseudo.obs_seq.out',\n'../observations/drifters_u_pseudo.obs_seq.out',\n'../observations/drifters_v_pseudo.obs_seq.out',\n'../observations/adcp_u_pseudo.obs_seq.out',\n'../observations/adcp_v_pseudo.obs_seq.out',\n'../observations/tmi_pseudo.obs_seq.out'\n"
-      },
-      "filename_out": {
-         "values": "'obs_seq.out'"
-      },
-      "gregorian_cal": {
-         "values": "= '.true.' if $CALENDAR == \"GREGORIAN\" else '.false.'"
-      }
+   "model_nml": {
+      "template_file": "mom6.r.nc",
+      "static_file": "c.e22.GMOM.T62_g16.nuopc.001.mom6.static.nc",
+      "ocean_geometry": "ocean_geometry.nc",
+      "assimilation_period_days": -1,
+      "assimilation_period_seconds": -1,
+      "model_state_variables": " ",
+      "layer_name": "Layer",
+      "use_pseudo_depth": false
    },
-   "obs_diag_nml": {
-      "obs_sequence_name": {
-         "values": "'obs_seq.final'"
-      },
-      "obs_sequence_list": {
-         "values": "''"
-      },
-      "first_bin_center": {
-         "values": "1998, 1, 3, 0, 0, 0"
-      },
-      "last_bin_center": {
-         "values": "1998, 2, 1, 0, 0, 0"
-      },
-      "bin_separation": {
-         "values": "0, 0, 1, 0, 0, 0"
-      },
-      "bin_width": {
-         "values": "0, 0, 1, 0, 0, 0"
-      },
-      "time_to_skip": {
-         "values": "0, 0, 0, 0, 0, 0"
-      },
-      "max_num_bins": {
-         "values": 1000
-      },
-      "trusted_obs": {
-         "values": "'null'"
-      },
-      "Nregions": {
-         "values": 4
-      },
-      "lonlim1": {
-         "values": "30.0,  130.0, 290.0, 290"
-      },
-      "lonlim2": {
-         "values": "130.0, 270.0, 380.0, 380"
-      },
-      "latlim1": {
-         "values": "-50.0, -50.0, -50.0,  20"
-      },
-      "latlim2": {
-         "values": "20.0,  50.0,  50.0,  50"
-      },
-      "reg_names": {
-         "values": "'Indian Ocean', 'Pacific', 'Atlantic', 'North Atlantic'"
-      },
-      "print_mismatched_locs": {
-         "values": ".false."
-      },
-      "create_rank_histogram": {
-         "values": ".true."
-      },
-      "outliers_in_histogram": {
-         "values": ".true."
-      },
-      "use_zero_error_obs": {
-         "values": ".false."
-      },
-      "verbose": {
-         "values": ".true."
-      },
-      "hlevel": {
-         "values": "10.0,  20.0,   30.0,   40.0,  100.0,\n200.0, 500.0, 1000.0, 2000.0\n"
-      }
-   },
-   "schedule_nml": {
-      "calendar": {
-         "values": {
-            "$CALENDAR == \"GREGORIAN\"": "'Gregorian'"
-         }
-      },
-      "first_bin_start": {
-         "values": "1601,  1,  1,  0,  0,  0"
-      },
-      "first_bin_end": {
-         "values": "2999,  1,  1,  0,  0,  0"
-      },
-      "last_bin_end": {
-         "values": "2999,  1,  1,  0,  0,  0"
-      },
-      "bin_interval_days": {
-         "values": 1000000
-      },
-      "bin_interval_seconds": {
-         "values": 0
-      },
-      "max_num_bins": {
-         "values": 1000
-      },
-      "print_table": {
-         "values": ".true."
-      }
-   },
-   "obs_seq_to_netcdf_nml": {
-      "obs_sequence_name": {
-         "values": "'obs_seq.final'"
-      },
-      "obs_sequence_list": {
-         "values": "''"
-      },
-      "append_to_netcdf": {
-         "values": ".false."
-      },
-      "lonlim1": {
-         "values": 0.0
-      },
-      "lonlim2": {
-         "values": 360.0
-      },
-      "latlim1": {
-         "values": -90.0
-      },
-      "latlim2": {
-         "values": 90.0
-      },
-      "verbose": {
-         "values": ".false."
-      }
-   },
-   "model_mod_check_nml": {
-      "input_state_files": {
-         "values": "'pop.r.nc'"
-      },
-      "output_state_files": {
-         "values": "'mmc_output.nc'"
-      },
-      "test1thru": {
-         "values": 0
-      },
-      "run_tests": {
-         "values": "1, 2, 3, 4, 5, 7"
-      },
-      "x_ind": {
-         "values": 10
-      },
-      "loc_of_interest": {
-         "values": "320.0, 18.0, 5.0"
-      },
-      "quantity_of_interest": {
-         "values": "'QTY_U_CURRENT_COMPONENT'"
-      },
-      "interp_test_lonrange": {
-         "values": "0.0, 359.0"
-      },
-      "interp_test_dlon": {
-         "values": 1.0
-      },
-      "interp_test_latrange": {
-         "values": "-89.0, 89.0"
-      },
-      "interp_test_dlat": {
-         "values": 1.0
-      },
-      "interp_test_vertrange": {
-         "values": "1000.0,  1005.0"
-      },
-      "interp_test_dvert": {
-         "values": 2000.0
-      },
-      "interp_test_vertcoord": {
-         "values": "'VERTISHEIGHT'"
-      },
-      "verbose": {
-         "values": ".false."
-      }
+   "quad_interpolate_nml": {
+      "do_rotate": false,
+      "debug": 0
    }
 }
