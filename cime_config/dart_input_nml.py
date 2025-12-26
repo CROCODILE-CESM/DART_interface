@@ -40,6 +40,11 @@ class DART_input_nml(ParamGen):
                     for item in value:
                         if isinstance(item, bool):
                             converted_items.append('.true.' if item else '.false.')
+                        elif isinstance(item, (int, float)):
+                            # Keep numbers as numbers (don't convert to string with quotes)
+                            converted_items.append(str(item))
+                        elif isinstance(item, str) and item == '':
+                            converted_items.append("''")
                         elif isinstance(item, str):
                             converted_items.append(f"'{item}'")
                         else:
