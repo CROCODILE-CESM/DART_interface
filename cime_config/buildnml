@@ -136,8 +136,11 @@ def buildnml(case, caseroot, compname):
                     if match:
                         var_name = match.group(1).strip()
                         var_value = match.group(2).strip().rstrip(',')
+                        # If value is empty, default to empty string with quotes
+                        if not var_value:
+                            var_value = "''"
                         nml_dict[current_nml][var_name] = var_value
-    
+
         return nml_dict
 
     def gen_input_data_list():
