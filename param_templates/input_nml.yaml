@@ -1,9 +1,9 @@
 location_nml:
   horiz_dist_only: false
-  vert_normalization_pressure: 100000.0_r8
-  vert_normalization_height: 10000.0_r8
-  vert_normalization_level: 20.0_r8
-  vert_normalization_scale_height: 5.0_r8
+  vert_normalization_pressure: 100000.0
+  vert_normalization_height: 10000.0
+  vert_normalization_level: 20.0
+  vert_normalization_scale_height: 5.0
   approximate_distance: false
   nlon: 71
   nlat: 36
@@ -17,12 +17,12 @@ location_nml:
 algorithm_info_nml:
   qceff_table_filename: ''
 assim_tools_nml:
-  cutoff: 0.2_r8
+  cutoff: 0.2
   sort_obs_inc: true
   spread_restoration: false
   sampling_error_correction: false
   adaptive_localization_threshold: -1
-  adaptive_cutoff_floor: 0.0_r8
+  adaptive_cutoff_floor: 0.0
   print_every_nth_obs: 0
   rectangular_quadrature: true
   gaussian_likelihood_tails: false
@@ -69,35 +69,35 @@ filter_nml:
   - false
   - false
   inf_sd_max_change:
-  - 1.05_r8
-  - 1.05_r8
+  - 1.05
+  - 1.05
   inf_deterministic:
   - true
   - true
   inf_damping:
-  - 1.0_r8
-  - 1.0_r8
+  - 1.0
+  - 1.0
   inf_initial:
-  - 1.0_r8
-  - 1.0_r8
+  - 1.0
+  - 1.0
   inf_sd_initial:
-  - 0.0_r8
-  - 0.0_r8
+  - 0.0
+  - 0.0
   inf_lower_bound:
-  - 1.0_r8
-  - 1.0_r8
+  - 1.0
+  - 1.0
   inf_upper_bound:
-  - 1000000.0_r8
-  - 1000000.0_r8
+  - 1000000.0
+  - 1000000.0
   inf_sd_lower_bound:
-  - 0.0_r8
-  - 0.0_r8
+  - 0.0
+  - 0.0
   silence: false
   distributed_state: true
   single_file_in: false
   single_file_out: false
   perturb_from_single_instance: false
-  perturbation_amplitude: 0.2_r8
+  perturbation_amplitude: 0.2
   compute_posterior: true
   stages_to_write:
   - 'output    '
@@ -122,8 +122,8 @@ probit_transform_nml:
   use_logit_instead_of_probit: false
   do_inverse_check: false
 quality_control_nml:
-  input_qc_threshold: 3.0_r8
-  outlier_threshold: -1.0_r8
+  input_qc_threshold: 3.0
+  outlier_threshold: -1.0
   enable_special_outlier_code: false
 reg_factor_nml:
   select_regression: 1
