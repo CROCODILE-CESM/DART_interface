@@ -20,5 +20,5 @@ def wrap_in_values(data):
 wrapped_nml = wrap_in_values(nml.todict())
 
 # Write to YAML
-with open('output.yaml', 'w') as f:
+with open('input_nml.yaml', 'w') as f:
     yaml.dump(wrapped_nml, f, default_flow_style=False)
