@@ -109,6 +109,40 @@ def buildnml(case, caseroot, compname):
         """Simple parser for Fortran namelist files."""
         import re
         
+        def convert_fortran_value(value_str):
+            """Convert Fortran namelist value string to appropriate Python type."""
+            value_str = value_str.strip()
+            
+            # Handle empty or quoted empty string
+            if not value_str or value_str == "''":
+                return ''
+            
+            # Handle booleans
+            if value_str.lower() in ['.true.', 't']:
+                return True
+            if value_str.lower() in ['.false.', 'f']:
+                return False
+            
+            # Handle comma-separated lists (arrays)
+            if ',' in value_str:
+                items = [convert_fortran_value(item.strip()) for item in value_str.split(',')]
+                return items
+            
+            # Handle quoted strings
+            if (value_str.startswith("'") and value_str.endswith("'")) or \
+               (value_str.startswith('"') and value_str.endswith('"')):
+                return value_str[1:-1]  # Remove quotes
+            
+            # Try to convert to number
+            try:
+                if '.' in value_str or 'e' in value_str.lower():
+                    return float(value_str)
+                else:
+                    return int(value_str)
+            except ValueError:
+                # If all else fails, return as string
+                return value_str
+        
         nml_dict = {}
         current_nml = None
         
@@ -136,10 +170,8 @@ def buildnml(case, caseroot, compname):
                     if match:
                         var_name = match.group(1).strip()
                         var_value = match.group(2).strip().rstrip(',')
-                        # If value is empty, default to empty string with quotes
-                        if not var_value:
-                            var_value = "''"
-                        nml_dict[current_nml][var_name] = var_value
+                        # Convert to appropriate Python type
+                        nml_dict[current_nml][var_name] = convert_fortran_value(var_value)
 
         return nml_dict
 
