@@ -94,8 +94,13 @@ def buildnml(case, caseroot, compname):
                 if namelist_name in input_nml.data:
                     for var_name, var_value in namelist_vars.items():
                         if var_name in input_nml.data[namelist_name]:
-                            # Update the value in input_nml
-                            input_nml.data[namelist_name][var_name]["values"] = var_value
+                            # Check if it's a dict with "values" key or a direct value
+                            item = input_nml.data[namelist_name][var_name]
+                            if isinstance(item, dict) and "values" in item:
+                                input_nml.data[namelist_name][var_name]["values"] = var_value
+                            else:
+                                # Direct assignment for simple types
+                                input_nml.data[namelist_name][var_name] = var_value
                         else:
                             logger.warning(f"Variable {var_name} in {namelist_name} not found in template")
                 else:
