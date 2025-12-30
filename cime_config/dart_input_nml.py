@@ -1,8 +1,8 @@
 import os, sys, shutil
 
 # Are these two lines needed?
-_CIMEROOT = os.getenv("CIMEROOT")
-sys.path.append(os.path.join(_CIMEROOT, "scripts", "Tools"))
+#_CIMEROOT = os.getenv("CIMEROOT")
+#sys.path.append(os.path.join(_CIMEROOT, "scripts", "Tools"))
 
 from CIME.ParamGen.paramgen import ParamGen
 
