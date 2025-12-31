@@ -57,10 +57,10 @@
          "values": true
       },
       "special_localization_cutoffs": {
-         "values": ""
+         "values": -888888
       },
       "special_localization_obs_types": {
-         "values": ""
+         "values": "null"
       },
       "spread_restoration": {
          "values": false
@@ -293,19 +293,19 @@
          "values": 0
       },
       "special_vert_normalization_heights": {
-         "values": ""
+         "values": -888888
       },
       "special_vert_normalization_levels": {
-         "values": ""
+         "values": -888888
       },
       "special_vert_normalization_obs_types": {
-         "values": ""
+         "values": "null"
       },
       "special_vert_normalization_pressures": {
-         "values": ""
+         "values": -888888
       },
       "special_vert_normalization_scale_heights": {
-         "values": ""
+         "values": -888888
       },
       "vert_normalization_height": {
          "values": 10000.0
@@ -337,7 +337,7 @@
          "values": "ocean_geometry.nc"
       },
       "static_file": {
-         "values": "c.e22.GMOM.T62_g16.nuopc.001.mom6.static.nc"
+         "values": "static.nc"
       },
       "template_file": {
          "values": "mom6.r.nc"

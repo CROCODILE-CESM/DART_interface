@@ -9,11 +9,11 @@
   nlat = 36
   output_box_info = .FALSE.
   print_box_level = 0
-  special_vert_normalization_obs_types = ''
-  special_vert_normalization_pressures = ''
-  special_vert_normalization_heights = ''
-  special_vert_normalization_levels = ''
-  special_vert_normalization_scale_heights = ''
+  special_vert_normalization_obs_types = 'null'
+  special_vert_normalization_pressures = -888888
+  special_vert_normalization_heights = -888888
+  special_vert_normalization_levels = -888888
+  special_vert_normalization_scale_heights = -888888
 /
 
 &algorithm_info_nml
@@ -32,8 +32,8 @@
   gaussian_likelihood_tails = .FALSE.
   output_localization_diagnostics = .FALSE.
   localization_diagnostics_file = "localization_diagnostics"
-  special_localization_obs_types = ''
-  special_localization_cutoffs = ''
+  special_localization_obs_types = 'null'
+  special_localization_cutoffs = -888888
   distribute_mean = .FALSE.
   close_obs_caching = .TRUE.
   adjust_obs_impact = .FALSE.
@@ -167,7 +167,7 @@
 
 &model_nml
   template_file = 'mom6.r.nc'
-  static_file = 'c.e22.GMOM.T62_g16.nuopc.001.mom6.static.nc'
+  static_file = 'static.nc'
   ocean_geometry = 'ocean_geometry.nc'
   assimilation_period_days = 1
   assimilation_period_seconds = 0
