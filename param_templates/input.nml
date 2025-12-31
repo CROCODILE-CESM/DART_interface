@@ -32,8 +32,8 @@
   gaussian_likelihood_tails = .FALSE.
   output_localization_diagnostics = .FALSE.
   localization_diagnostics_file = "localization_diagnostics"
-  special_localization_obs_types = ! No default value found
-  special_localization_cutoffs = ! No default value found
+  special_localization_obs_types = ''
+  special_localization_cutoffs = ''
   distribute_mean = .FALSE.
   close_obs_caching = .TRUE.
   adjust_obs_impact = .FALSE.

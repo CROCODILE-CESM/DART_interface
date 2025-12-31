@@ -57,10 +57,10 @@
          "values": true
       },
       "special_localization_cutoffs": {
-         "values": null
+         "values": ""
       },
       "special_localization_obs_types": {
-         "values": null
+         "values": ""
       },
       "spread_restoration": {
          "values": false
