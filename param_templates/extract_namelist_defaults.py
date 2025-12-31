@@ -71,6 +71,7 @@ def extract_namelist_defaults(filename):
     
     namelists = {}
     declarations = {}
+    parameters = {}  # Store parameter definitions
     
     def walk_ast(node):
         """Recursively walk the AST to find namelists and variable declarations."""
@@ -109,12 +110,42 @@ def extract_namelist_defaults(filename):
                         
                         namelists[group_name] = var_names
         
-        # Extract variable declarations with default values
+        # Extract variable declarations (both parameters and regular variables)
         elif isinstance(node, f2003.Type_Declaration_Stmt):
             try:
+                # Check if this is a parameter declaration
+                attr_spec = node.items[1]  # attr_spec
+                is_parameter = False
+                if attr_spec is not None:
+                    attr_str = str(attr_spec).lower()
+                    is_parameter = 'parameter' in attr_str
+                
                 # Structure: [declaration_type_spec, attr_spec, entity_decl_list]
                 entity_decls = node.items[2]  # entity_decl_list
-                if entity_decls is not None:
+                
+                if is_parameter and entity_decls is not None:
+                    # Parse parameter declarations
+                    decl_str = str(entity_decls)
+                    # Handle multiple parameters on one line (comma-separated)
+                    if ',' in decl_str:
+                        param_parts = decl_str.split(',')
+                        for param_part in param_parts:
+                            param_part = param_part.strip()
+                            if '=' in param_part:
+                                parts = param_part.split('=', 1)
+                                param_name = parts[0].strip().lower()
+                                param_value = parts[1].strip()
+                                parameters[param_name] = param_value
+                    else:
+                        # Single parameter declaration
+                        if '=' in decl_str:
+                            parts = decl_str.split('=', 1)
+                            param_name = parts[0].strip().lower()
+                            param_value = parts[1].strip()
+                            parameters[param_name] = param_value
+                
+                # Process regular (non-parameter) variable declarations
+                elif not is_parameter and entity_decls is not None:
                     # Parse the entity declaration directly from string representation
                     decl_str = str(entity_decls)
                     
@@ -252,6 +283,15 @@ def extract_namelist_defaults(filename):
     
     # Walk the entire AST
     walk_ast(ast)
+    
+    # Resolve parameter references in declarations
+    for var_name, default_value in declarations.items():
+        if default_value is not None:
+            # Check if the default value is a parameter reference
+            default_lower = default_value.lower().strip()
+            if default_lower in parameters:
+                # Replace parameter name with its value
+                declarations[var_name] = parameters[default_lower]
     
     # Match namelists with their variable defaults
     result = {}
