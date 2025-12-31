@@ -213,9 +213,9 @@ location_nml:
     values: 5.0
 model_nml:
   assimilation_period_days:
-    values: -1
+    values: 1
   assimilation_period_seconds:
-    values: -1
+    values: 0
   layer_name:
     values: Layer
   model_state_variables:
@@ -304,6 +304,6 @@ utilities_nml:
   print_debug:
     values: false
   termlevel:
-    values: E_ERR
+    values: 2
   write_nml:
     values: file

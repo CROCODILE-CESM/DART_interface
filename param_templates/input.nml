@@ -157,7 +157,7 @@
 /
 
 &utilities_nml
-  termlevel = E_ERR
+  termlevel = 2
   logfilename = 'dart_log.out'
   module_details = .FALSE.
   nmlfilename = 'dart_log.nml'
@@ -169,8 +169,8 @@
   template_file = 'mom6.r.nc'
   static_file = 'c.e22.GMOM.T62_g16.nuopc.001.mom6.static.nc'
   ocean_geometry = 'ocean_geometry.nc'
-  assimilation_period_days = -1
-  assimilation_period_seconds = -1
+  assimilation_period_days = 1
+  assimilation_period_seconds = 0
   model_state_variables = ' '
   layer_name = 'Layer'
   use_pseudo_depth = .FALSE.
