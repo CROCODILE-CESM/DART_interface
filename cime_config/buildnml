@@ -147,31 +147,64 @@ def buildnml(case, caseroot, compname):
         current_nml = None
         
         with open(filepath, 'r') as f:
-            for line in f:
-                line = line.strip()
-                # Skip empty lines and comments
-                if not line or line.startswith('!'):
-                    continue
-                
-                # Start of namelist
-                if line.startswith('&'):
-                    current_nml = line[1:].strip()
-                    nml_dict[current_nml] = {}
-                    continue
-                
-                # End of namelist
-                if line.startswith('/'):
-                    current_nml = None
-                    continue
-                
-                # Parse variable assignment
-                if current_nml and '=' in line:
-                    match = re.match(r'(\w+)\s*=\s*(.+)', line)
-                    if match:
-                        var_name = match.group(1).strip()
-                        var_value = match.group(2).strip().rstrip(',')
-                        # Convert to appropriate Python type
-                        nml_dict[current_nml][var_name] = convert_fortran_value(var_value)
+            lines = f.readlines()
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            i += 1
+            
+            # Skip empty lines and comments
+            if not line or line.startswith('!'):
+                continue
+            
+            # Start of namelist
+            if line.startswith('&'):
+                current_nml = line[1:].strip()
+                nml_dict[current_nml] = {}
+                continue
+            
+            # End of namelist
+            if line.startswith('/'):
+                current_nml = None
+                continue
+            
+            # Parse variable assignment
+            if current_nml and '=' in line:
+                match = re.match(r'(\w+)\s*=\s*(.+)', line)
+                if match:
+                    var_name = match.group(1).strip()
+                    var_value = match.group(2).strip()
+                    
+                    # Check if this is a multi-line value (ends with comma and not complete)
+                    # Continue reading lines until we find one that doesn't end with a comma
+                    # or we hit the end of the namelist
+                    while var_value.rstrip().endswith(',') and i < len(lines):
+                        next_line = lines[i].strip()
+                        i += 1
+                        
+                        # Stop if we hit end of namelist or start of new namelist
+                        if next_line.startswith('/') or next_line.startswith('&'):
+                            i -= 1  # Back up so we process this line next iteration
+                            break
+                        
+                        # Skip empty lines and comments in continuation
+                        if not next_line or next_line.startswith('!'):
+                            continue
+                        
+                        # Stop if we hit a new variable assignment
+                        if '=' in next_line and not next_line.strip().startswith("'"):
+                            i -= 1  # Back up so we process this line next iteration
+                            break
+                        
+                        # Append the continuation line
+                        var_value += ' ' + next_line.strip()
+                    
+                    # Remove trailing comma if present
+                    var_value = var_value.rstrip(',').strip()
+                    
+                    # Convert to appropriate Python type
+                    nml_dict[current_nml][var_name] = convert_fortran_value(var_value)
 
         return nml_dict
 
