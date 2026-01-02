@@ -22,9 +22,7 @@ logger = logging.getLogger(__name__)
 
 def CESM_DART_config(case):
     '''
-    Build the DART executables using the conventional DART scripts (quickbuild.sh et al.)
-    In the future, this routine should be replaced by a build routine that actually takes
-    advantage of CIME build infrastructure.
+    Build the DART executables using the conventional DART scripts (quickbuild.sh)
     '''
 
     logger.info("Building DART executables using quickbuild.sh")
@@ -38,6 +36,8 @@ def CESM_DART_config(case):
     buildlib_dir = os.path.dirname(os.path.abspath(__file__))
 
     # Number of model run - data assimilation steps to complete
+    # HK todo does DATA_ASSIMILATION_CYCLES need to be > 0
+    # where is this getting set?
     data_assimilation_cycles = case.get_value("DATA_ASSIMILATION_CYCLES")
     expect(data_assimilation_cycles>0, "DATA_ASSIMILATION_CYCLES must be greater than 0 when DART is active.")
 
@@ -119,11 +119,6 @@ def CESM_DART_config(case):
         rc, out, err = run_cmd(cmd)
         logger.info("%s: \n\n output:\n %s \n\n err:\n\n%s\n"%(cmd,out,err))
         expect(rc == 0, "Command %s failed with rc=%s" % (cmd, rc))
-
-    # Stage the DART executables in the CESM execution root directory
-    # HK Why is is this the root directory and not the esp directory?
-    #for executable in dart_executables:
-    #    shutil.copy(os.path.join(targetdir,executable), exeroot)
 
     # Note: the remaining CESM_DART_config tasks are done in buildnml.
 
