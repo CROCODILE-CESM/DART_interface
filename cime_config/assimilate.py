@@ -9,6 +9,7 @@ import shutil
 import sys
 import subprocess
 import logging
+import glob
 from pathlib import Path
 
 _CIMEROOT = os.getenv("CIMEROOT")
@@ -53,6 +54,68 @@ def stage_dart_input_nml(case, rundir):
         logger.error(f"DART input.nml not found at {dart_input_nml_src}")
         raise FileNotFoundError(f"DART input.nml not found at {dart_input_nml_src}")
 
+def set_restart_files(rundir):
+    """Create filter_input_list.txt and filter_output_list.txt from rpointer files."""
+    # Find all rpointer.ocn_???? files (where ???? is 4 digits)
+    rpointer_pattern = os.path.join(rundir, "rpointer.ocn_????")
+    rpointer_files = sorted(glob.glob(rpointer_pattern))
+    
+    if not rpointer_files:
+        logger.warning(f"No rpointer.ocn_???? files found in {rundir}")
+        return
+    
+    # Concatenate all rpointer files into filter_input_list.txt
+    filter_input_list = os.path.join(rundir, "filter_input_list.txt")
+    with open(filter_input_list, 'w') as outfile:
+        for rpointer_file in rpointer_files:
+            with open(rpointer_file, 'r') as infile:
+                outfile.write(infile.read())
+    
+    logger.info(f"Created {filter_input_list} from {len(rpointer_files)} rpointer files")
+    
+    # Copy filter_input_list.txt to filter_output_list.txt
+    filter_output_list = os.path.join(rundir, "filter_output_list.txt")
+    shutil.copy(filter_input_list, filter_output_list)
+    logger.info(f"Copied {filter_input_list} to {filter_output_list}")
+
+
+def set_template_files(case, rundir):
+    """Create symlinks for template files (mom6.r.nc and mom6.static.nc)."""
+    # Create symlink mom6.r.nc pointing to first file in filter_input_list.txt
+    filter_input_list = os.path.join(rundir, "filter_input_list.txt")
+    if os.path.exists(filter_input_list):
+        with open(filter_input_list, 'r') as f:
+            first_restart_file = f.readline().strip()
+        
+        if first_restart_file:
+            mom6_r_nc = os.path.join(rundir, "mom6.r.nc")
+            # Remove existing symlink if present
+            if os.path.exists(mom6_r_nc) or os.path.islink(mom6_r_nc):
+                os.remove(mom6_r_nc)
+            os.symlink(first_restart_file, mom6_r_nc)
+            logger.info(f"Created symlink: {mom6_r_nc} -> {first_restart_file}")
+        else:
+            logger.warning("filter_input_list.txt is empty, cannot create mom6.r.nc symlink")
+    else:
+        logger.warning(f"filter_input_list.txt not found in {rundir}")
+    
+    # Create symlink mom6.static.nc pointing to first matching static file
+    casename = case.get_value("CASE")
+    static_pattern = os.path.join(rundir, f"{casename}.mom6.h.static*")
+    static_files = sorted(glob.glob(static_pattern))
+    
+    if static_files:
+        first_static_file = static_files[0]
+        mom6_static_nc = os.path.join(rundir, "mom6.static.nc")
+        # Remove existing symlink if present
+        if os.path.exists(mom6_static_nc) or os.path.islink(mom6_static_nc):
+            os.remove(mom6_static_nc)
+        os.symlink(first_static_file, mom6_static_nc)
+        logger.info(f"Created symlink: {mom6_static_nc} -> {first_static_file}")
+    else:
+        logger.warning(f"No static files matching {static_pattern} found")
+
+
 def clean_up(rundir):
     """Put mom input.nml back after filter run."""
     mom_input_nml = os.path.join(rundir, "input.nml")
@@ -94,7 +157,13 @@ def run_filter(case, caseroot):
 
     # Check for required input files
     check_required_files(rundir)
+
+    # Set the model restart files for dart to read and update
+    set_restart_files(rundir)
     
+    # Set the required model template files
+    set_template_files(rundir)
+
     # Run filter
     logger.info(f"Running DART filter in {rundir}")
     
