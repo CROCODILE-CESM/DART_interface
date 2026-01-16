@@ -420,7 +420,7 @@ class TestRunFilter:
     @patch('assimilate.check_required_files')
     @patch('assimilate.stage_dart_input_nml')
     @patch('assimilate.backup_mom_input_nml')
-    @patch('assimilate.get_observations')
+    @patch('assimilate.get_observations', create=True)
     @patch('assimilate.get_model_time')
     @patch('subprocess.run')
     @patch('os.path.exists')
