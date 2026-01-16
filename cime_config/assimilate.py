@@ -10,6 +10,7 @@ Stages DART input.nml into the run directory.
 Extracts the model time from the coupler restart pointer for use in observation processing.
 Prepares MOM6 restart and template files by processing rpointer files and creating symlinks 
 for model restarts and static files.
+Obtains observations for assimilation based on the model time. TODO: Implement get_observations function.
 Runs the DART filter executable using MPI, capturing output and handling errors.
 Cleans up after filter execution by restoring original MOM input files.
 
