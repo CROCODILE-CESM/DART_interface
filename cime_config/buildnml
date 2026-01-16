@@ -228,7 +228,8 @@ def buildnml(case, caseroot, compname):
 
         assim_script  = os.path.join(buildnml_dir, "assimilate.py")
         case.set_value("DATA_ASSIMILATION_SCRIPT", assim_script)
-        case.set_value("NTASKS_ESP", ninst_ocn) # HK does CIME take care of NTASKS_PER_INST_ESP?
+        ntasks_ocn = case.get_value("NTASKS_OCN")
+        case.set_value("NTASKS_ESP", ntasks_ocn) # HK does CIME take care of NTASKS_PER_INST_ESP?
 
     def stage_sampling_error_correction(input_nml):
         """If requested, stage sampling error correction file."""
