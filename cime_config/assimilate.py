@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
 
 """
-Script to run DART filter for data assimilation.
+Data assimilation script for CESM MOM6.
+
+Performs the following tasks:
+
+Backs up and restores MOM input files, because MOM6 and DART both use a file called input.nml.
+Stages DART input.nml into the run directory.
+Extracts the model time from the coupler restart pointer for use in observation processing.
+Prepares MOM6 restart and template files by processing rpointer files and creating symlinks 
+for model restarts and static files.
+Runs the DART filter executable using MPI, capturing output and handling errors.
+Cleans up after filter execution by restoring original MOM input files.
+
 """
 
 import os
@@ -10,16 +21,22 @@ import sys
 import subprocess
 import logging
 import glob
+import re
 from pathlib import Path
+from collections import namedtuple
+
+ModelTime = namedtuple('ModelTime', ['year', 'month', 'day', 'seconds'])
 
 _CIMEROOT = os.getenv("CIMEROOT")
+if not _CIMEROOT:
+    raise EnvironmentError("CIMEROOT environment variable is not set")
+
 sys.path.append(os.path.join(_CIMEROOT, "scripts", "Tools"))
 
 from standard_script_setup import *
 from CIME.case import Case
 
 logger = logging.getLogger(__name__)
-
 
 def backup_mom_input_nml(rundir):
     """Backup the MOM input.nml file."""
@@ -39,7 +56,8 @@ def check_required_files(rundir):
         if not os.path.exists(os.path.join(rundir, filename)):
             missing_files.append(filename)
     if missing_files:
-        logger.warning(f"Missing required files in {rundir}: {', '.join(missing_files)}")
+        logger.error(f"Missing required files in {rundir}: {', '.join(missing_files)}")
+        raise FileNotFoundError(f"Missing required files: {', '.join(missing_files)}")
     else:
         logger.info("All required files are present.")
 
@@ -54,15 +72,27 @@ def stage_dart_input_nml(case, rundir):
         logger.error(f"DART input.nml not found at {dart_input_nml_src}")
         raise FileNotFoundError(f"DART input.nml not found at {dart_input_nml_src}")
 
-def set_restart_files(rundir):
-    """Create filter_input_list.txt and filter_output_list.txt from rpointer files."""
-    # Find all rpointer.ocn_???? files (where ???? is 4 digits)
-    rpointer_pattern = os.path.join(rundir, "rpointer.ocn_????")
-    rpointer_files = sorted(glob.glob(rpointer_pattern))
+def find_files_for_model_time(rundir, component, model_time):
+    """
+    Find all rpointer.ocn_* files in rundir that match the given model_time.
+    model_time should be a ModelTime namedtuple.
+    """
+    # Format the timestamp as in the filenames
+    timestamp = f"{model_time.year:04}-{model_time.month:02}-{model_time.day:02}-{model_time.seconds:05}"
+    pattern = os.path.join(rundir, f"rpointer.{component}_*.{timestamp}")
+    return glob.glob(pattern)
+
+def set_restart_files(rundir, model_time):
+    """
+    Create filter_input_list.txt and filter_output_list.txt from rpointer files
+    matching the given model_time.
+    """
+
+    rpointer_files = find_files_for_model_time(rundir, "ocn", model_time)    
     
     if not rpointer_files:
         logger.warning(f"No rpointer.ocn_???? files found in {rundir}")
-        return
+        raise FileNotFoundError("No rpointer.ocn_???? files found.")
     
     # Concatenate all rpointer files into filter_input_list.txt
     filter_input_list = os.path.join(rundir, "filter_input_list.txt")
@@ -126,6 +156,30 @@ def clean_up(rundir):
     else:
         logger.warning(f"No backup MOM input.nml found in {rundir}, cleanup skipped.")
 
+def get_model_time_from_filename(filename):
+    """
+    Extract model time from a filename like rpointer.ocn_0001.0001-01-02-00000.
+    Returns a ModelTime namedtuple.
+    """
+    match = re.search(r'\.(\d{4})-(\d{2})-(\d{2})-(\d{5})$', filename)
+    if match:
+        year, month, day, seconds = map(int, match.groups())
+        return ModelTime(year, month, day, seconds)
+    else:
+        logger.error("Filename is missing or does not match expected pattern.")
+        raise ValueError(f"Could not extract model time from filename: {filename}")
+
+def get_model_time(case):
+    """ Get model time from DRV_RESTART_POINTER variable which points
+        to the coupler restart file."""
+    rpointer = case.get_value("DRV_RESTART_POINTER")
+    if not rpointer or rpointer == "UNSET":
+        raise ValueError("DRV_RESTART_POINTER is not set in the case.")
+    model_time = get_model_time_from_filename(rpointer)
+    logger.info(f"Model time extracted from {rpointer}: {model_time.year}-{model_time.month:02}-{model_time.day:02} {model_time.seconds} seconds")
+    return model_time
+
+
 def run_filter(case, caseroot):
     """Run the DART filter executable."""
     
@@ -143,26 +197,26 @@ def run_filter(case, caseroot):
     # Change to run directory
     os.chdir(rundir)
 
-    # Get model time HK TODO
-    # Bash version gets model time from rpointer.ocn_0001 file
-    # is this time available in CASE?
-    #get_model_time()
- 
-    #get_observations() # HK TODO need model time first
+    # Get model time from case
+    model_time = get_model_time(case)
+    
+    # stage observations
+    get_observations(model_time, rundir)
 
     # Back up mom input.nml
     backup_mom_input_nml(rundir)
 
+    # Stage DART input.nml
     stage_dart_input_nml(case, rundir)
 
     # Check for required input files
     check_required_files(rundir)
 
     # Set the model restart files for dart to read and update
-    set_restart_files(rundir)
+    set_restart_files(rundir, model_time)
     
     # Set the required model template files
-    set_template_files(rundir)
+    set_template_files(case, rundir)
 
     # Run filter
     logger.info(f"Running DART filter in {rundir}")

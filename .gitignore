@@ -5,3 +5,4 @@ cime_config/buildnmlc
 cime_config/buildlibc
 *$py.class
 buildnmlc
+.coverage
