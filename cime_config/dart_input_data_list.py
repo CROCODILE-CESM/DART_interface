@@ -6,7 +6,14 @@ sys.path.append(os.path.join(_CIMEROOT, "scripts", "Tools"))
 from CIME.ParamGen.paramgen import ParamGen
 
 class DART_input_data_list(ParamGen):
-    '''Stage DART input_data_list file'''
+    '''
+    Stage DART input_data_list file
+    This is the list of observation sequences
+    TODO: this is using the run_startdate + the stop option, 
+      but I think this should be the model_time + the stop option
+    If using startdate the observations need to be for the entire
+    experiment. 
+    '''
 
     def write(self, output_path, case):
 

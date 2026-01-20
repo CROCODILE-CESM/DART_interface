@@ -10,7 +10,7 @@ Stages DART input.nml into the run directory.
 Extracts the model time from the coupler restart pointer for use in observation processing.
 Prepares MOM6 restart and template files by processing rpointer files and creating symlinks 
 for model restarts and static files.
-Obtains observations for assimilation based on the model time. TODO: Implement get_observations function.
+Obtains observations for assimilation based on the model time.
 Runs the DART filter executable using MPI, capturing output and handling errors.
 Cleans up after filter execution by restoring original MOM input files.
 
@@ -212,7 +212,7 @@ def get_observations(model_time, rundir):
             os.remove(dest)
         os.symlink(obs_file, dest)
         logger.info(f"Staged observation file: {obs_file} -> {dest}")
-        break  # Only use the first match, or remove break to use all
+        break  # Only use the first match
 
 
 def run_filter(case, caseroot):

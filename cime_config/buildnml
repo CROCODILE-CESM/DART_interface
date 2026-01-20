@@ -215,8 +215,15 @@ def buildnml(case, caseroot, compname):
         return nml_dict
 
     def gen_input_data_list():
-        """ Observational data for DART assimilation """
-        # HK todo what to do with observations.
+        """ 
+        Observational data for DART assimilation
+        This list is generated from the template input_data_list.json based on 
+        logic in dart_input_data_list.py
+        if DATA_ASSIMILATION_OCN == True then 
+          Buildconf/dart.input_data_list will have a list of obs_sequence files
+        if DATA_ASSIMILATION_OCN == False then 
+          Buildconf/dart.input_data_list will be blank
+        """
         input_data_list_template = os.path.join(
             dartroot, "param_templates", "json", "input_data_list.json"
         )
