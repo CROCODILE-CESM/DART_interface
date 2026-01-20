@@ -1,6 +1,6 @@
 # The list of input files to be checked out from inputdata
 ---
-dart.observation_data_list:
+dart.input_data_list:
     ocn_obs_seq:
         $DATA_ASSIMILATION_OCN == True :
             = [f"${DIN_LOC_ROOT}/esp/dart/ocn_obs_seq/WOD13/{year}01/obs_seq.0Z.{year}01{day:02d}" for year in range(2005,2017) for day in range(1,32)] + 
