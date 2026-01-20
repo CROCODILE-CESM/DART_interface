@@ -181,10 +181,38 @@ def get_model_time(case):
     return model_time
 
 def get_observations(model_time, rundir):
-    """ Stage observations for assimilation.
     """
-    # Placeholder implementation
-    logger.info(f"Staging observations for model time: {model_time.year}-{model_time.month:02}-{model_time.day:02} {model_time.seconds} seconds")   
+    Stage the correct observation sequence file for the given model time.
+    """
+    # Format the date string as in the obs_seq filenames WOD data bank files.
+    date_str = f"{model_time.year:04}{model_time.month:02}{model_time.day:02}"
+    obs_seq_pattern = f"obs_seq.0Z.{date_str}"
+
+    # Path to the input data list file (adjust as needed)
+    input_data_list_path = os.path.join(rundir, "dart.input_data_list")
+
+    # Read all observation sequence files from the list
+    obs_files = []
+    with open(input_data_list_path, "r") as f:
+        for line in f:
+            if "ocn_obs_seq" in line:
+                # Extract the file path after '=' and strip whitespace
+                obs_file = line.split("=", 1)[-1].strip()
+                if obs_seq_pattern in obs_file:
+                    obs_files.append(obs_file)
+
+    if not obs_files:
+        logger.warning(f"No observation sequence found for {date_str}")
+        return
+
+    # Stage (symlink) the observation file(s) into rundir as obs_seq.out
+    for obs_file in obs_files:
+        dest = os.path.join(rundir, "obs_seq.out")
+        if os.path.exists(dest):
+            os.remove(dest)
+        os.symlink(obs_file, dest)
+        logger.info(f"Staged observation file: {obs_file} -> {dest}")
+        break  # Only use the first match, or remove break to use all
 
 
 def run_filter(case, caseroot):
