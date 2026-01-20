@@ -180,6 +180,12 @@ def get_model_time(case):
     logger.info(f"Model time extracted from {rpointer}: {model_time.year}-{model_time.month:02}-{model_time.day:02} {model_time.seconds} seconds")
     return model_time
 
+def get_observations(model_time, rundir):
+    """ Stage observations for assimilation.
+    """
+    # Placeholder implementation
+    logger.info(f"Staging observations for model time: {model_time.year}-{model_time.month:02}-{model_time.day:02} {model_time.seconds} seconds")   
+
 
 def run_filter(case, caseroot):
     """Run the DART filter executable."""
