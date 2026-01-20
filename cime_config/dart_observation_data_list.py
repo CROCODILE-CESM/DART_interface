@@ -5,8 +5,13 @@ sys.path.append(os.path.join(_CIMEROOT, "scripts", "Tools"))
 
 from CIME.ParamGen.paramgen import ParamGen
 
-class DART_input_data_list(ParamGen):
-    '''Stage DART input_data_list file'''
+class DART_observation_data_list(ParamGen):
+    '''
+    Stage DART observation data list file
+    Currently this uses dart_observation_data_list.yaml|json as a template
+    which is the WOD observation sequences available on glade. 
+
+    '''
 
     def write(self, output_path, case):
 
