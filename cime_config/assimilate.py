@@ -216,7 +216,7 @@ def get_observations(model_time, rundir):
         break  # Only use the first match
 
 
-def run_filter(case, caseroot):
+def run_filter(case, caseroot, use_mpi=True):
     """Run the DART filter executable."""
     
     # Get necessary paths
@@ -258,14 +258,18 @@ def run_filter(case, caseroot):
     logger.info(f"Running DART filter in {rundir}")
     
     try:
-        # Always run filter with MPI
-        ntasks = case.get_value("NTASKS_ESP")
-        mpirun = case.get_value("MPI_RUN_COMMAND")
-        if not ntasks or ntasks == "UNSET":
-            ntasks = 1  # Default to 1 if not set
-        if not mpirun or mpirun == "UNSET":
-            mpirun = "mpibind"  # Default Derecho mpirun command
-        cmd = f"{mpirun} {filter_exe}"
+        if use_mpi:
+            # Always run filter with MPI
+            ntasks = case.get_value("NTASKS_ESP")
+            mpirun = case.get_value("MPI_RUN_COMMAND")
+            if not ntasks or ntasks == "UNSET":
+                ntasks = 1  # Default to 1 if not set
+            if not mpirun or mpirun == "UNSET":
+                mpirun = "mpibind"  # Default Derecho mpirun command
+            cmd = f"{mpirun} {filter_exe}"
+        else:
+            # Run filter serially (no MPI)
+            cmd = filter_exe
         
         logger.info(f"Executing: {cmd}")
         result = subprocess.run(cmd, shell=True, check=True, 
@@ -283,27 +287,31 @@ def run_filter(case, caseroot):
     clean_up(rundir)
 
 
-#  assimilate function so cime run_sub_or_cmd finds calls this function from assimlate.py
-def assimilate(caseroot, rundir=None):
+# assimilate function so cime run_sub_or_cmd finds calls this function from assimilate.py
+# function needs to have the same name as the script.
+def assimilate(caseroot, rundir=None, use_mpi=True):
     """
     Main entry point for data assimilation, callable as a function.
     caseroot: Path to the case root directory.
     rundir: Optionally override the run directory (otherwise taken from case).
+    use_mpi: Whether to use MPI to run the filter (default True). This is to 
+             allow serial runs for testing on login nodes.
     """
     with Case(caseroot) as case:
         if rundir is None:
             rundir = case.get_value("RUNDIR")
-        run_filter(case, caseroot)
+        run_filter(case, caseroot, use_mpi=use_mpi)
 
 # Updated main() to use assimilate()
 def main():
     import sys
-    if len(sys.argv) > 1:
-        caseroot = sys.argv[1]
-    else:
-        print("Error: caseroot argument is required. Usage: python assimilate.py /path/to/caseroot", file=sys.stderr)
-        sys.exit(1)
-    assimilate(caseroot)
+    import argparse
+    parser = argparse.ArgumentParser(description="Run DART assimilation for a CESM case.")
+    parser.add_argument("caseroot", help="Path to the case root directory.")
+    parser.add_argument("--no-mpi", action="store_true", help="Run filter without MPI (serial mode, for testing on login node).")
+    args = parser.parse_args()
+    use_mpi = not args.no_mpi
+    assimilate(args.caseroot, use_mpi=use_mpi)
 
 if __name__ == "__main__":
     main()
