@@ -452,22 +452,41 @@ class TestRunFilter:
             assimilate.run_filter(mock_case, "/case/root")
 
 
+
 class TestMain:
-    """Test main function."""
-    
+    """Test main and assimilate() entry points."""
+
     @patch('assimilate.Case')
-    @patch('os.getcwd')
     @patch('assimilate.run_filter')
-    def test_main(self, mock_run_filter, mock_getcwd, mock_Case):
-        """Test main entry point."""
-        mock_getcwd.return_value = "/case/root"
+    def test_assimilate_function(self, mock_run_filter, mock_Case):
+        """Test assimilate() function with caseroot argument."""
         mock_case_instance = Mock()
         mock_Case.return_value.__enter__.return_value = mock_case_instance
-        
-        assimilate.main()
-        
+        assimilate.assimilate("/case/root")
         mock_Case.assert_called_once_with("/case/root")
         mock_run_filter.assert_called_once_with(mock_case_instance, "/case/root")
+
+    @patch('assimilate.Case')
+    @patch('assimilate.run_filter')
+    def test_main_with_argv(self, mock_run_filter, mock_Case):
+        """Test main() with command-line caseroot argument."""
+        mock_case_instance = Mock()
+        mock_Case.return_value.__enter__.return_value = mock_case_instance
+        test_argv = ["assimilate.py", "/case/root"]
+        with patch('sys.argv', test_argv):
+            assimilate.main()
+        mock_Case.assert_called_once_with("/case/root")
+        mock_run_filter.assert_called_once_with(mock_case_instance, "/case/root")
+
+    def test_main_no_argv_errors(self):
+        """Test main() errors if no caseroot argument is given."""
+        import io
+        test_argv = ["assimilate.py"]
+        with patch('sys.argv', test_argv), patch('sys.stderr', new_callable=io.StringIO) as mock_stderr:
+            with pytest.raises(SystemExit) as excinfo:
+                assimilate.main()
+            assert excinfo.value.code == 1
+            assert "caseroot argument is required" in mock_stderr.getvalue()
 
 
 if __name__ == "__main__":
