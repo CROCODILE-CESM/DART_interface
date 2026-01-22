@@ -270,17 +270,19 @@ def run_filter(case, caseroot, use_mpi=True):
         else:
             # Run filter serially (no MPI)
             cmd = filter_exe
-        
+
         logger.info(f"Executing: {cmd}")
         result = subprocess.run(cmd, shell=True, check=True, 
                               capture_output=True, text=True)
-        
+
         logger.info("Filter completed successfully")
-        logger.debug(f"Filter output: {result.stdout}")
-        
+        logger.debug(f"Filter stdout: {result.stdout}")
+        logger.debug(f"Filter stderr: {result.stderr}")
+
     except subprocess.CalledProcessError as e:
         logger.error(f"Filter failed with return code {e.returncode}")
-        logger.error(f"Error output: {e.stderr}")
+        logger.error(f"Filter stdout: {e.stdout}")
+        logger.error(f"Filter stderr: {e.stderr}")
         raise
 
     # Clean up and restore mom input.nml
