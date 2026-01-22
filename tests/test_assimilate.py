@@ -390,7 +390,7 @@ class TestRunFilter:
         # Verify calls
         mock_chdir.assert_called_once_with("/run/dir")
         mock_get_time.assert_called_once_with(mock_case)
-        mock_get_obs.assert_called_once_with(model_time, "/run/dir")
+        mock_get_obs.assert_called_once_with(mock_case, model_time, "/run/dir")
         mock_backup.assert_called_once_with("/run/dir")
         mock_stage.assert_called_once_with(mock_case, "/run/dir")
         mock_check.assert_called_once_with("/run/dir")
