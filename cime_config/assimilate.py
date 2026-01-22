@@ -282,12 +282,28 @@ def run_filter(case, caseroot):
     # Clean up and restore mom input.nml
     clean_up(rundir)
 
-def main():
-    """Main entry point."""
-    caseroot = os.getcwd()
-    
+
+#  assimilate function so cime run_sub_or_cmd finds calls this function from assimlate.py
+def assimilate(caseroot, rundir=None):
+    """
+    Main entry point for data assimilation, callable as a function.
+    caseroot: Path to the case root directory.
+    rundir: Optionally override the run directory (otherwise taken from case).
+    """
     with Case(caseroot) as case:
+        if rundir is None:
+            rundir = case.get_value("RUNDIR")
         run_filter(case, caseroot)
+
+# Updated main() to use assimilate()
+def main():
+    import sys
+    if len(sys.argv) > 1:
+        caseroot = sys.argv[1]
+    else:
+        print("Error: caseroot argument is required. Usage: python assimilate.py /path/to/caseroot", file=sys.stderr)
+        sys.exit(1)
+    assimilate(caseroot)
 
 if __name__ == "__main__":
     main()
