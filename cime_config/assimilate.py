@@ -181,7 +181,7 @@ def get_model_time(case):
     logger.info(f"Model time extracted from {rpointer}: {model_time.year}-{model_time.month:02}-{model_time.day:02} {model_time.seconds} seconds")
     return model_time
 
-def get_observations(model_time, rundir):
+def get_observations(case, model_time, rundir):
     """
     Stage the correct observation sequence file for the given model time.
     """
@@ -190,7 +190,7 @@ def get_observations(model_time, rundir):
     obs_seq_pattern = f"obs_seq.0Z.{date_str}"
 
     # Path to the input data list file (adjust as needed)
-    input_data_list_path = os.path.join(rundir, "dart.input_data_list")
+    input_data_list_path = os.path.join(case.get_value("CASEROOT"), "Buildconf", "dart.input_data_list")
 
     # Read all observation sequence files from the list
     obs_files = []
@@ -237,7 +237,7 @@ def run_filter(case, caseroot, use_mpi=True):
     model_time = get_model_time(case)
     
     # stage observations
-    get_observations(model_time, rundir)
+    get_observations(case, model_time, rundir)
 
     # Back up mom input.nml
     backup_mom_input_nml(rundir)
