@@ -107,6 +107,15 @@ def buildnml(case, caseroot, compname):
                 else:
                     logger.warning(f"Namelist {namelist_name} not found in template")
     
+        # Set input_state_file_list, output_state_file_list
+        # HK @todo filter_input|output_list.txt is hardcoded in assimilate.py
+        input_nml.data["filter_nml"]["input_state_file_list"]["values"] = "filter_input_list.txt"
+        input_nml.data["filter_nml"]["output_state_file_list"]["values"] = "filter_output_list.txt"
+
+        # Ensemble manager namelist settings
+        input_nml.data["ensemble_manager_nml"]["tasks_per_node"]["values"] = tasks_per_node
+        input_nml.data["ensemble_manager_nml"]["layout"]["values"] = 2
+
         input_nml.write(os.path.join(confdir, "input.nml"), case)
 
         return input_nml
