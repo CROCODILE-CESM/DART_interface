@@ -88,8 +88,8 @@ def buildnml(case, caseroot, compname):
         # ensemble size is number of ocean instances
         input_nml.data["filter_nml"]["ens_size"]["values"] = ninst_ocn
 
-        # HK todo set ensemble_manager namelist based on number of tasks per node
-        tasks_per_node = case.get_value("TASKS_PER_NODE")
+        # set ensemble_manager namelist based on number of tasks per node
+        tasks_per_node = case.get_value("MAX_TASKS_PER_NODE")
 
         # Read user_nl_dart file and parse namelist
         user_nl_file = os.path.join(caseroot, "user_nl_dart")
