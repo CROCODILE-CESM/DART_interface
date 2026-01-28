@@ -112,7 +112,7 @@ def set_restart_files(rundir, model_time):
 
 
 def set_template_files(case, rundir):
-    """Create symlinks for template files (mom6.r.nc and mom6.static.nc)."""
+    """Create symlinks for template files (mom6.r.nc, mom6.static.nc, and ocean_geometry.nc)."""
     # Create symlink mom6.r.nc pointing to first file in filter_input_list.txt
     filter_input_list = os.path.join(rundir, "filter_input_list.txt")
     if os.path.exists(filter_input_list):
@@ -146,6 +146,21 @@ def set_template_files(case, rundir):
         logger.info(f"Created symlink: {mom6_static_nc} -> {first_static_file}")
     else:
         logger.warning(f"No static files matching {static_pattern} found")
+    
+    # Create symlink ocean_geometry.nc pointing to first matching geometry file
+    geometry_pattern = os.path.join(rundir, f"{casename}.mom6.h.ocean_geometry*")
+    geometry_files = sorted(glob.glob(geometry_pattern))
+    
+    if geometry_files:
+        first_geometry_file = geometry_files[0]
+        ocean_geometry_nc = os.path.join(rundir, "ocean_geometry.nc")
+        # Remove existing symlink if present
+        if os.path.exists(ocean_geometry_nc) or os.path.islink(ocean_geometry_nc):
+            os.remove(ocean_geometry_nc)
+        os.symlink(first_geometry_file, ocean_geometry_nc)
+        logger.info(f"Created symlink: {ocean_geometry_nc} -> {first_geometry_file}")
+    else:
+        logger.warning(f"No geometry files matching {geometry_pattern} found")
 
 
 def clean_up(rundir):
