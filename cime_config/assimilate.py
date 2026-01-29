@@ -25,6 +25,8 @@ import glob
 import re
 from pathlib import Path
 from collections import namedtuple
+import logging
+logging.basicConfig(level=logging.INFO)
 
 ModelTime = namedtuple('ModelTime', ['year', 'month', 'day', 'seconds'])
 
