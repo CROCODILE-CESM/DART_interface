@@ -232,6 +232,24 @@ def get_observations(case, model_time, rundir):
         logger.info(f"Staged observation file: {obs_file} -> {dest}")
         break  # Only use the first match
 
+def rename_dart_logs(case, model_time, rundir):
+    """
+    Rename dart_log.out and dart_log.nml to include the case name
+    and the model_time.
+    """
+    dart_log_out = os.path.join(rundir, "dart_log.out")
+    dart_log_nml = os.path.join(rundir, "dart_log.nml")
+    case_name = case.get_value("CASE")
+    date_str = f"{model_time.year:04}{model_time.month:02}{model_time.day:02}_{model_time.seconds:05}"
+    if os.path.exists(dart_log_out):
+        new_log_out = os.path.join(rundir, f"dart_log_{case_name}_{date_str}.out")
+        os.rename(dart_log_out, new_log_out)
+        logger.info(f"Renamed dart_log.out to {new_log_out}")
+    if os.path.exists(dart_log_nml):
+        new_log_nml = os.path.join(rundir, f"dart_log_{case_name}_{date_str}.nml")
+        os.rename(dart_log_nml, new_log_nml)
+        logger.info(f"Renamed dart_log.nml to {new_log_nml}")
+
 
 def run_filter(case, caseroot, use_mpi=True):
     """Run the DART filter executable."""
@@ -305,6 +323,8 @@ def run_filter(case, caseroot, use_mpi=True):
     # Clean up and restore mom input.nml
     clean_up(rundir)
 
+    # Rename dart_log.out and dart_log.nml to have case and model time
+    rename_dart_logs(case, rundir)
 
 # assimilate function so cime run_sub_or_cmd finds calls this function from assimilate.py
 # function needs to have the same name as the script.
