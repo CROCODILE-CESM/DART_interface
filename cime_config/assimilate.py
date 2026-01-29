@@ -240,13 +240,13 @@ def rename_dart_logs(case, model_time, rundir):
     dart_log_out = os.path.join(rundir, "dart_log.out")
     dart_log_nml = os.path.join(rundir, "dart_log.nml")
     case_name = case.get_value("CASE")
-    date_str = f"{model_time.year:04}{model_time.month:02}{model_time.day:02}_{model_time.seconds:05}"
+    date_str = f"{model_time.year:04}-{model_time.month:02}-{model_time.day:02}-{model_time.seconds:05}"
     if os.path.exists(dart_log_out):
-        new_log_out = os.path.join(rundir, f"dart_log_{case_name}_{date_str}.out")
+        new_log_out = os.path.join(rundir, f"dart_log.{case_name}.{date_str}.out")
         os.rename(dart_log_out, new_log_out)
         logger.info(f"Renamed dart_log.out to {new_log_out}")
     if os.path.exists(dart_log_nml):
-        new_log_nml = os.path.join(rundir, f"dart_log_{case_name}_{date_str}.nml")
+        new_log_nml = os.path.join(rundir, f"dart_log.{case_name}.{date_str}.nml")
         os.rename(dart_log_nml, new_log_nml)
         logger.info(f"Renamed dart_log.nml to {new_log_nml}")
 

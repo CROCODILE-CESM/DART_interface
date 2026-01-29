@@ -398,9 +398,9 @@ class TestRunFilter:
         mock_subprocess.assert_called_once()
         mock_cleanup.assert_called_once_with("/run/dir")
         # check log renaming
-        date_str = "20010115_43200"
-        mock_rename.assert_any_call("/run/dir/dart_log.out", f"/run/dir/dart_log_testcase_{date_str}.out")
-        mock_rename.assert_any_call("/run/dir/dart_log.nml", f"/run/dir/dart_log_testcase_{date_str}.nml")
+        date_str = "2001-01-15-43200"
+        mock_rename.assert_any_call("/run/dir/dart_log.out", f"/run/dir/dart_log.testcase.{date_str}.out")
+        mock_rename.assert_any_call("/run/dir/dart_log.nml", f"/run/dir/dart_log.testcase.{date_str}.nml")
     
     @patch('assimilate.get_model_time')
     @patch('os.path.exists')
@@ -471,9 +471,9 @@ class TestRenameDartLogs:
         # Call function
         assimilate.rename_dart_logs(mock_case, model_time, str(rundir))
         # Check new filenames
-        date_str = f"20200506_12345"
-        new_log_out = rundir / f"dart_log_testcase_{date_str}.out"
-        new_log_nml = rundir / f"dart_log_testcase_{date_str}.nml"
+        date_str = f"2020-05-06-12345"
+        new_log_out = rundir / f"dart_log.testcase.{date_str}.out"
+        new_log_nml = rundir / f"dart_log.testcase.{date_str}.nml"
         assert new_log_out.exists()
         assert new_log_nml.exists()
         assert new_log_out.read_text() == "log out content"
