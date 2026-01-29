@@ -350,6 +350,7 @@ class TestGetModelTime:
 class TestRunFilter:
     """Test run_filter function."""
     
+    @patch('assimilate.os.rename')
     @patch('assimilate.clean_up')
     @patch('assimilate.set_template_files')
     @patch('assimilate.set_restart_files')
@@ -364,7 +365,8 @@ class TestRunFilter:
     def test_run_filter_success(
         self, mock_chdir, mock_exists, mock_subprocess,
         mock_get_time, mock_get_obs, mock_backup, mock_stage,
-        mock_check, mock_set_restart, mock_set_template, mock_cleanup
+        mock_check, mock_set_restart, mock_set_template, mock_cleanup,
+	mock_rename
     ):
         """Test successful filter run."""
         # Setup mocks
@@ -373,20 +375,17 @@ class TestRunFilter:
             "RUNDIR": "/run/dir",
             "EXEROOT": "/exe/root",
             "NTASKS_ESP": 4,
-            "MPI_RUN_COMMAND": "mpirun -np 4"
+            "MPI_RUN_COMMAND": "mpirun -np 4",
+            "CASE": "testcase"
         }.get(x)
-        
         mock_exists.return_value = True
         model_time = ModelTime(2001, 1, 15, 43200)
         mock_get_time.return_value = model_time
-        
         mock_result = Mock()
         mock_result.stdout = "Filter output"
         mock_subprocess.return_value = mock_result
-        
         # Run function
         assimilate.run_filter(mock_case, "/case/root")
-        
         # Verify calls
         mock_chdir.assert_called_once_with("/run/dir")
         mock_get_time.assert_called_once_with(mock_case)
@@ -398,6 +397,10 @@ class TestRunFilter:
         mock_set_template.assert_called_once_with(mock_case, "/run/dir")
         mock_subprocess.assert_called_once()
         mock_cleanup.assert_called_once_with("/run/dir")
+        # check log renaming
+        date_str = "20010115_43200"
+        mock_rename.assert_any_call("/run/dir/dart_log.out", f"/run/dir/dart_log_testcase_{date_str}.out")
+        mock_rename.assert_any_call("/run/dir/dart_log.nml", f"/run/dir/dart_log_testcase_{date_str}.nml")
     
     @patch('assimilate.get_model_time')
     @patch('os.path.exists')
@@ -451,7 +454,30 @@ class TestRunFilter:
         with pytest.raises(subprocess.CalledProcessError):
             assimilate.run_filter(mock_case, "/case/root")
 
-
+class TestRenameDartLogs:
+    """Test rename_dart_logs function."""
+    def test_rename_dart_logs(self, tmp_path):
+        # Setup mock case and model_time
+        mock_case = Mock()
+        mock_case.get_value.return_value = "testcase"
+        model_time = ModelTime(2020, 5, 6, 12345)
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        # Create dummy log files
+        log_out = rundir / "dart_log.out"
+        log_nml = rundir / "dart_log.nml"
+        log_out.write_text("log out content")
+        log_nml.write_text("log nml content")
+        # Call function
+        assimilate.rename_dart_logs(mock_case, model_time, str(rundir))
+        # Check new filenames
+        date_str = f"20200506_12345"
+        new_log_out = rundir / f"dart_log_testcase_{date_str}.out"
+        new_log_nml = rundir / f"dart_log_testcase_{date_str}.nml"
+        assert new_log_out.exists()
+        assert new_log_nml.exists()
+        assert new_log_out.read_text() == "log out content"
+        assert new_log_nml.read_text() == "log nml content"
 
 class TestMain:
     """Test main and assimilate() entry points."""

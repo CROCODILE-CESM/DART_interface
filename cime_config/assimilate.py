@@ -324,7 +324,7 @@ def run_filter(case, caseroot, use_mpi=True):
     clean_up(rundir)
 
     # Rename dart_log.out and dart_log.nml to have case and model time
-    rename_dart_logs(case, rundir)
+    rename_dart_logs(case, model_time, rundir)
 
 # assimilate function so cime run_sub_or_cmd finds calls this function from assimilate.py
 # function needs to have the same name as the script.
