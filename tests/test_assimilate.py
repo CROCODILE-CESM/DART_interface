@@ -479,6 +479,36 @@ class TestRenameDartLogs:
         assert new_log_out.read_text() == "log out content"
         assert new_log_nml.read_text() == "log nml content"
 
+class TestRenameObsSeqFinal:
+    """Test rename_obs_seq_final function."""
+
+    def test_rename_obs_seq_final_success(self, tmp_path):
+        # Setup
+        case = Mock()
+        case.get_value.return_value = "testcase"
+        model_time = ModelTime(2020, 5, 6, 12345)
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        obs_seq = rundir / "obs_seq.final"
+        obs_seq.write_text("obs seq content")
+        # Call function
+        assimilate.rename_obs_seq_final(case, model_time, str(rundir))
+        date_str = f"2020-05-06-12345"
+        new_obs_seq = rundir / f"obs_seq.final.testcase.{date_str}"
+        assert new_obs_seq.exists()
+        assert new_obs_seq.read_text() == "obs seq content"
+
+    def test_rename_obs_seq_final_missing(self, tmp_path):
+        case = Mock()
+        case.get_value.return_value = "testcase"
+        model_time = ModelTime(2020, 5, 6, 12345)
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        # obs_seq.final does not exist
+        with pytest.raises(FileNotFoundError):
+            assimilate.rename_obs_seq_final(case, model_time, str(rundir))
+
+
 class TestMain:
     """Test main and assimilate() entry points."""
 

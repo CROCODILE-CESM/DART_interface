@@ -250,6 +250,18 @@ def rename_dart_logs(case, model_time, rundir):
         os.rename(dart_log_nml, new_log_nml)
         logger.info(f"Renamed dart_log.nml to {new_log_nml}")
 
+def rename_obs_seq_final(case, model_time, rundir):
+    """
+    Rename obs_seq.final to obs_seq.final.<case>.<model_time>.
+    """
+    case_name = case.get_value("CASE")
+    obs_seq_final = os.path.join(rundir, "obs_seq.final")
+    if not os.path.exists(obs_seq_final):
+        raise FileNotFoundError(f"obs_seq.final not found in {rundir}")
+    date_str = f"{model_time.year:04}-{model_time.month:02}-{model_time.day:02}-{model_time.seconds:05}"
+    new_obs_seq_final = os.path.join(rundir, f"obs_seq.final.{case_name}.{date_str}")
+    os.rename(obs_seq_final, new_obs_seq_final)
+    logger.info(f"Renamed obs_seq.final to {new_obs_seq_final}")
 
 def run_filter(case, caseroot, use_mpi=True):
     """Run the DART filter executable."""
@@ -315,17 +327,21 @@ def run_filter(case, caseroot, use_mpi=True):
         logger.debug(f"Filter stdout: {result.stdout}")
         logger.debug(f"Filter stderr: {result.stderr}")
 
+        # Rename dart_log.out and dart_log.nml to have case and model time
+        rename_dart_logs(case, model_time, rundir)
+
+        # Rename obs_seq.final to obs_seq.final.<case>.<model_time>
+        rename_obs_seq_final(case, model_time, rundir)
+
+        # Clean up and restore mom input.nml
+        clean_up(rundir)
+
     except subprocess.CalledProcessError as e:
         logger.error(f"Filter failed with return code {e.returncode}")
         logger.error(f"Filter stdout: {e.stdout}")
         logger.error(f"Filter stderr: {e.stderr}")
         raise
 
-    # Clean up and restore mom input.nml
-    clean_up(rundir)
-
-    # Rename dart_log.out and dart_log.nml to have case and model time
-    rename_dart_logs(case, model_time, rundir)
 
 # assimilate function so cime run_sub_or_cmd finds calls this function from assimilate.py
 # function needs to have the same name as the script.
