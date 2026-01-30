@@ -300,7 +300,8 @@ def run_filter(case, caseroot, use_mpi=True):
             if not ntasks or ntasks == "UNSET":
                 ntasks = 1  # Default to 1 if not set
             if not mpirun or mpirun == "UNSET":
-                mpirun = "mpibind"  # Default Derecho mpirun command
+                #mpirun = "mpibind"  # Default Derecho mpirun command, does pass error if mpi program fails
+                mpirun = "mpirun"
             cmd = f"{mpirun} {filter_exe}"
         else:
             # Run filter serially (no MPI)
