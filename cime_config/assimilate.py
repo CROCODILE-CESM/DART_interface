@@ -191,15 +191,22 @@ def parse_inflation_settings(input_nml_path):
     }
     return {'prior': prior, 'posterior': posterior}
 
-def stage_inflation_files(case, rundir, model_time):
+def stage_inflation_files(rundir):
     """
     Stage inflation restart files from previous cycle if they exist.
     Looks for files with previous model time and copies them to expected names.
-    inflation files are hardeded in DART
-       output_priorinf_mean.nc
-       output_priorinf_sd.nc
-       output_postinf_mean.nc
-       output_postinf_sd.nc
+    inflation files are hardcoded in DART. 
+    The expected files are:
+       input_priorinf_mean.nc
+       input_priorinf_sd.nc
+       input_postinf_mean.nc
+       input_postinf_sd.nc
+    which are copied from:
+         output_priorinf_mean.nc.<case>.<model_time> etc. from the previous cycle.
+
+    If would be good to calculate file file name from the model time, but this would 
+    require knowing the assimilation interval and calculating the previous model time.
+    For now, requiring that inflation files are named input_priorinf_mean.nc etc. in the rundir
     """
     input_nml = os.path.join(rundir, "input.nml")
     if not os.path.exists(input_nml):
@@ -207,36 +214,35 @@ def stage_inflation_files(case, rundir, model_time):
         raise FileNotFoundError(f"input.nml not found in {rundir}")
     
     inflation_settings = parse_inflation_settings(input_nml)
-    case_name = case.get_value("CASE")
     
     if inflation_settings['prior']['inf_flavor'] > 0 and inflation_settings['prior']['inf_initial_from_restart']:
-        # Look for prior inflation file from previous cycle
-        pattern = os.path.join(rundir, f"output_priorinf_mean.nc.{case_name}.*")
-        files = sorted(glob.glob(pattern))
-        if files:
-            latest = files[-1]
-            dest = os.path.join(rundir, "output_priorinf_mean.nc")
-            shutil.copy(latest, dest)
-            logger.info(f"Staged prior inflation file: {latest} -> {dest}")
-        else:
-            logger.warning("Prior inflation configured to read from file, but no previous file found")
-    
+        # For prior inflation from file, input_priorinf_mean.nc and input_priorinf_sd.nc must exist
+        prior_mean = os.path.join(rundir, "input_priorinf_mean.nc")
+        prior_sd = os.path.join(rundir, "input_priorinf_sd.nc")
+        missing = []
+        if not os.path.exists(prior_mean):
+            missing.append("input_priorinf_mean.nc")
+        if not os.path.exists(prior_sd):
+            missing.append("input_priorinf_sd.nc")
+        if missing:
+            raise FileNotFoundError(f"Missing prior inflation file(s) in {rundir}: {', '.join(missing)}")
+
     if inflation_settings['posterior']['inf_flavor'] > 0 and inflation_settings['posterior']['inf_initial_from_restart']:
-        # Look for posterior inflation file from previous cycle
-        pattern = os.path.join(rundir, f"posterior_inflate_restart.{case_name}.*")
-        files = sorted(glob.glob(pattern))
-        if files:
-            latest = files[-1]
-            dest = os.path.join(rundir, "posterior_inflate_restart")
-            shutil.copy(latest, dest)
-            logger.info(f"Staged posterior inflation file: {latest} -> {dest}")
-        else:
-            logger.warning("Posterior inflation configured to read from file, but no previous file found")
+        # For posterior inflation from file, input_postinf_mean.nc and input_postinf_sd.nc must exist
+        post_mean = os.path.join(rundir, "input_postinf_mean.nc")
+        post_sd = os.path.join(rundir, "input_postinf_sd.nc")
+        missing = []
+        if not os.path.exists(post_mean):
+            missing.append("input_postinf_mean.nc")
+        if not os.path.exists(post_sd):
+            missing.append("input_postinf_sd.nc")
+        if missing:
+            raise FileNotFoundError(f"Missing posterior inflation file(s) in {rundir}: {', '.join(missing)}")
 
 def rename_inflation_files(case, model_time, rundir):
     """
     Rename inflation restart files to include case name and model time.
-    Copy renamed files to input_{prior|post}inf_{mean|sd}.nc for next cycle
+    Copy renamed files to input_{prior|post}inf_{mean|sd}.nc for next cycle.
     """
     case_name = case.get_value("CASE")
     date_str = f"{model_time.year:04}-{model_time.month:02}-{model_time.day:02}-{model_time.seconds:05}"
@@ -397,7 +403,7 @@ def run_filter(case, caseroot, use_mpi=True):
     set_template_files(case, rundir)
 
     # Stage inflation files if needed
-    stage_inflation_files(case, rundir, model_time)
+    stage_inflation_files(rundir)
 
     # Run filter
     logger.info(f"Running DART filter in {rundir}")

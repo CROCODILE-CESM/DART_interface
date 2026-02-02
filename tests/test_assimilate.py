@@ -349,7 +349,10 @@ class TestGetModelTime:
 
 
 class TestRunFilter:
-    """Test run_filter function."""
+    """
+    Test run_filter function.
+    Heavy use of mocking here, as this function orchestrates many steps.
+    """
     
     @patch('assimilate.os.rename')
     @patch('assimilate.clean_up')
@@ -360,14 +363,16 @@ class TestRunFilter:
     @patch('assimilate.backup_mom_input_nml')
     @patch('assimilate.get_observations', create=True)
     @patch('assimilate.get_model_time')
+    @patch('assimilate.rename_inflation_files')
+    @patch('assimilate.stage_inflation_files')
     @patch('subprocess.run')
     @patch('os.path.exists')
     @patch('os.chdir')
     def test_run_filter_success(
         self, mock_chdir, mock_exists, mock_subprocess,
-        mock_get_time, mock_get_obs, mock_backup, mock_stage,
+        mock_stage_infl, mock_rename_infl, mock_get_time, mock_get_obs, mock_backup, mock_stage,
         mock_check, mock_set_restart, mock_set_template, mock_cleanup,
-	mock_rename
+        mock_rename
     ):
         """Test successful filter run."""
         # Setup mocks
@@ -426,12 +431,13 @@ class TestRunFilter:
     @patch('assimilate.backup_mom_input_nml')
     @patch('assimilate.get_observations', create=True)
     @patch('assimilate.get_model_time')
+    @patch('assimilate.stage_inflation_files')
     @patch('subprocess.run')
     @patch('os.path.exists')
     @patch('os.chdir')
     def test_run_filter_subprocess_error(
         self, mock_chdir, mock_exists, mock_subprocess,
-        mock_get_time, mock_get_obs, mock_backup, mock_stage,
+        mock_stage_infl, mock_get_time, mock_get_obs, mock_backup, mock_stage,
         mock_check, mock_set_restart, mock_set_template, mock_cleanup
     ):
         """Test when subprocess returns error."""
@@ -511,17 +517,55 @@ class TestRenameObsSeqFinal:
 
 
 class TestStageInflationFiles:
+    def test_stage_inflation_files_required_files_posterior(self, tmp_path):
+        # Create input.nml with posterior inflation from file
+        nml_content = """
+&filter_nml
+    inf_flavor                  = 0, 2,
+    inf_initial_from_restart    = .false., .true.,
+/"""
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        (rundir / "input.nml").write_text(nml_content)
+        # Should raise FileNotFoundError if posterior inflation files are missing
+        with pytest.raises(FileNotFoundError) as excinfo:
+            assimilate.stage_inflation_files(str(rundir))
+        assert "input_postinf_mean.nc" in str(excinfo.value)
+        # Create the required posterior inflation files
+        (rundir / "input_postinf_mean.nc").write_text("")
+        (rundir / "input_postinf_sd.nc").write_text("")
+        # Should not raise now
+        assimilate.stage_inflation_files(str(rundir))
+
+    def test_stage_inflation_files_required_files_prior(self, tmp_path):
+        # Create input.nml with prior inflation from file
+        nml_content = """
+&filter_nml
+   inf_flavor                  = 2, 0,
+   inf_initial_from_restart    = .true., .false.,
+/"""
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        (rundir / "input.nml").write_text(nml_content)
+        # Should raise FileNotFoundError if inflation files are missing
+        with pytest.raises(FileNotFoundError) as excinfo:
+            assimilate.stage_inflation_files(str(rundir))
+        assert "input_priorinf_mean.nc" in str(excinfo.value)
+        # Create the required inflation files
+        (rundir / "input_priorinf_mean.nc").write_text("")
+        (rundir / "input_priorinf_sd.nc").write_text("")
+        # Should not raise now
+        assimilate.stage_inflation_files(str(rundir))
 
     def test_parse_inflation_settings(self, tmp_path):
         # Create a fake input.nml file
         nml_content = """
-    &filter_nml
-    inf_flavor                  = 2,                       3,
-    inf_initial_from_restart    = .true.,                  .false.,
-    inf_sd_initial_from_restart = .false.,                 .true.,
-    inf_initial                 = 1.1,                     1.2,
-    /
-    """
+&filter_nml
+inf_flavor                  = 2,                       3,
+inf_initial_from_restart    = .true.,                  .false.,
+inf_sd_initial_from_restart = .false.,                 .true.,
+inf_initial                 = 1.1,                     1.2,
+/"""
         nml_path = tmp_path / "input.nml"
         nml_path.write_text(nml_content)
 
@@ -529,8 +573,7 @@ class TestStageInflationFiles:
         nml_dict = f90nml.read(str(nml_path))
 
         with patch("assimilate.f90nml.read", return_value=nml_dict):
-            from assimilate import parse_inflation_settings
-            settings = parse_inflation_settings(str(nml_path))
+            settings = assimilate.parse_inflation_settings(str(nml_path))
 
         assert settings['prior']['inf_flavor'] == 2
         assert settings['posterior']['inf_flavor'] == 3
@@ -540,6 +583,14 @@ class TestStageInflationFiles:
         assert settings['posterior']['inf_sd_initial_from_restart'] is True
         assert settings['prior']['inf_initial'] == 1.1
         assert settings['posterior']['inf_initial'] == 1.2
+
+
+    def test_stage_inflation_files_missing_input_nml(self, tmp_path):
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        with pytest.raises(FileNotFoundError):
+            assimilate.stage_inflation_files(str(rundir))
+
 
 class TestMain:
     """Test main and assimilate() entry points."""
