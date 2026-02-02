@@ -25,7 +25,7 @@ import glob
 import re
 from pathlib import Path
 from collections import namedtuple
-import logging
+import f90nml
 logging.basicConfig(level=logging.INFO)
 
 ModelTime = namedtuple('ModelTime', ['year', 'month', 'day', 'seconds'])
@@ -112,7 +112,6 @@ def set_restart_files(rundir, model_time):
     shutil.copy(filter_input_list, filter_output_list)
     logger.info(f"Copied {filter_input_list} to {filter_output_list}")
 
-
 def set_template_files(case, rundir):
     """Create symlinks for template files (mom6.r.nc, mom6.static.nc, and ocean_geometry.nc)."""
     # Create symlink mom6.r.nc pointing to first file in filter_input_list.txt
@@ -163,6 +162,102 @@ def set_template_files(case, rundir):
         logger.info(f"Created symlink: {ocean_geometry_nc} -> {first_geometry_file}")
     else:
         logger.warning(f"No geometry files matching {geometry_pattern} found")
+
+def parse_inflation_settings(input_nml_path):
+    import f90nml
+    nml = f90nml.read(input_nml_path)
+    filter_nml = nml.get('filter_nml', {})
+
+    def get(key, idx, default):
+        arr = filter_nml.get(key, [default, default])
+        if not isinstance(arr, list):
+            arr = [arr]
+        while len(arr) < 2:
+            arr.append(arr[0])
+        return arr[idx]
+
+    # prior is 0 index, posterior is 1 index
+    prior = {
+        'inf_flavor': get('inf_flavor', 0, 0),
+        'inf_initial_from_restart': get('inf_initial_from_restart', 0, False),
+        'inf_sd_initial_from_restart': get('inf_sd_initial_from_restart', 0, False),
+        'inf_initial': get('inf_initial', 0, 1.0)
+    }
+    posterior = {
+        'inf_flavor': get('inf_flavor', 1, 0),
+        'inf_initial_from_restart': get('inf_initial_from_restart', 1, False),
+        'inf_sd_initial_from_restart': get('inf_sd_initial_from_restart', 1, False),
+        'inf_initial': get('inf_initial', 1, 1.0)
+    }
+    return {'prior': prior, 'posterior': posterior}
+
+def stage_inflation_files(case, rundir, model_time):
+    """
+    Stage inflation restart files from previous cycle if they exist.
+    Looks for files with previous model time and copies them to expected names.
+    inflation files are hardeded in DART
+       output_priorinf_mean.nc
+       output_priorinf_sd.nc
+       output_postinf_mean.nc
+       output_postinf_sd.nc
+    """
+    input_nml = os.path.join(rundir, "input.nml")
+    if not os.path.exists(input_nml):
+        logger.error("input.nml not found, cannot stage inflation files")
+        raise FileNotFoundError(f"input.nml not found in {rundir}")
+    
+    inflation_settings = parse_inflation_settings(input_nml)
+    case_name = case.get_value("CASE")
+    
+    if inflation_settings['prior']['inf_flavor'] > 0 and inflation_settings['prior']['inf_initial_from_restart']:
+        # Look for prior inflation file from previous cycle
+        pattern = os.path.join(rundir, f"output_priorinf_mean.nc.{case_name}.*")
+        files = sorted(glob.glob(pattern))
+        if files:
+            latest = files[-1]
+            dest = os.path.join(rundir, "output_priorinf_mean.nc")
+            shutil.copy(latest, dest)
+            logger.info(f"Staged prior inflation file: {latest} -> {dest}")
+        else:
+            logger.warning("Prior inflation configured to read from file, but no previous file found")
+    
+    if inflation_settings['posterior']['inf_flavor'] > 0 and inflation_settings['posterior']['inf_initial_from_restart']:
+        # Look for posterior inflation file from previous cycle
+        pattern = os.path.join(rundir, f"posterior_inflate_restart.{case_name}.*")
+        files = sorted(glob.glob(pattern))
+        if files:
+            latest = files[-1]
+            dest = os.path.join(rundir, "posterior_inflate_restart")
+            shutil.copy(latest, dest)
+            logger.info(f"Staged posterior inflation file: {latest} -> {dest}")
+        else:
+            logger.warning("Posterior inflation configured to read from file, but no previous file found")
+
+def rename_inflation_files(case, model_time, rundir):
+    """
+    Rename inflation restart files to include case name and model time.
+    Copy renamed files to input_{prior|post}inf_{mean|sd}.nc for next cycle
+    """
+    case_name = case.get_value("CASE")
+    date_str = f"{model_time.year:04}-{model_time.month:02}-{model_time.day:02}-{model_time.seconds:05}"
+    
+    inflation_files = [
+        "priorinf_mean",
+        "priorinf_sd",
+        "postinf_mean",
+        "postinf_sd"
+    ]
+    
+    for base_name in inflation_files:
+        src = os.path.join(rundir, f"output_{base_name}.nc")
+        if os.path.exists(src):
+            dest = os.path.join(rundir, f"output_{base_name}.{case_name}.{date_str}")
+            os.rename(src, dest)
+            logger.info(f"Renamed {base_name} to {dest}")
+            # create input file for next cycle
+            input_dest = os.path.join(rundir, f"input_{base_name}.nc")
+            shutil.copy(dest, input_dest)
+            logger.info(f"Copied {dest} to {input_dest} for next cycle")
 
 
 def clean_up(rundir):
@@ -301,6 +396,9 @@ def run_filter(case, caseroot, use_mpi=True):
     # Set the required model template files
     set_template_files(case, rundir)
 
+    # Stage inflation files if needed
+    stage_inflation_files(case, rundir, model_time)
+
     # Run filter
     logger.info(f"Running DART filter in {rundir}")
     
@@ -332,6 +430,9 @@ def run_filter(case, caseroot, use_mpi=True):
 
         # Rename obs_seq.final to obs_seq.final.<case>.<model_time>
         rename_obs_seq_final(case, model_time, rundir)
+
+        # Rename inflation files and setup next cycle
+        rename_inflation_files(case, model_time, rundir)
 
         # Clean up and restore mom input.nml
         clean_up(rundir)
