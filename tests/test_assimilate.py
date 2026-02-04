@@ -8,7 +8,6 @@ Tests the data assimilation script for CESM MOM6 with mocked CIME dependencies.
 
 import os
 import sys
-import f90nml
 import pytest
 from unittest.mock import Mock, patch, mock_open, MagicMock, call
 from pathlib import Path
@@ -569,12 +568,7 @@ inf_initial                 = 1.1,                     1.2,
         nml_path = tmp_path / "input.nml"
         nml_path.write_text(nml_content)
 
-        # Use f90nml to parse the file and patch f90nml.read to return the parsed dict
-        nml_dict = f90nml.read(str(nml_path))
-
-        with patch("assimilate.f90nml.read", return_value=nml_dict):
-            settings = assimilate.parse_inflation_settings(str(nml_path))
-
+        settings = assimilate.parse_inflation_settings(str(nml_path))
         assert settings['prior']['inf_flavor'] == 2
         assert settings['posterior']['inf_flavor'] == 3
         assert settings['prior']['inf_initial_from_restart'] is True
