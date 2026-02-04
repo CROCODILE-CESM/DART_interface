@@ -164,9 +164,116 @@ def set_template_files(case, rundir):
         logger.warning(f"No geometry files matching {geometry_pattern} found")
 
 def parse_inflation_settings(input_nml_path):
-    import f90nml
-    nml = f90nml.read(input_nml_path)
-    filter_nml = nml.get('filter_nml', {})
+    """
+    Parse filter_nml inflation settings from a Fortran namelist 
+    using only the standard library (not f90nml).
+    Returns a dict with 'prior' and 'posterior' keys.
+    """
+    def parse_fortran_namelist(filepath):
+        """Simple parser for Fortran namelist files."""
+        import re
+        
+        def convert_fortran_value(value_str):
+            """Convert Fortran namelist value string to appropriate Python type."""
+            value_str = value_str.strip()
+            
+            # Handle empty or quoted empty string
+            if not value_str or value_str == "''":
+                return ''
+            
+            # Handle booleans
+            if value_str.lower() in ['.true.', 't']:
+                return True
+            if value_str.lower() in ['.false.', 'f']:
+                return False
+            
+            # Handle comma-separated lists (arrays)
+            if ',' in value_str:
+                items = [convert_fortran_value(item.strip()) for item in value_str.split(',')]
+                return items
+            
+            # Handle quoted strings
+            if (value_str.startswith("'") and value_str.endswith("'")) or \
+               (value_str.startswith('"') and value_str.endswith('"')):
+                return value_str[1:-1]  # Remove quotes
+            
+            # Try to convert to number
+            try:
+                if '.' in value_str or 'e' in value_str.lower():
+                    return float(value_str)
+                else:
+                    return int(value_str)
+            except ValueError:
+                # If all else fails, return as string
+                return value_str
+        
+        nml_dict = {}
+        current_nml = None
+        
+        with open(filepath, 'r') as f:
+            lines = f.readlines()
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            i += 1
+            
+            # Skip empty lines and comments
+            if not line or line.startswith('!'):
+                continue
+            
+            # Start of namelist
+            if line.startswith('&'):
+                current_nml = line[1:].strip()
+                nml_dict[current_nml] = {}
+                continue
+            
+            # End of namelist
+            if line.startswith('/'):
+                current_nml = None
+                continue
+            
+            # Parse variable assignment
+            if current_nml and '=' in line:
+                match = re.match(r'(\w+)\s*=\s*(.+)', line)
+                if match:
+                    var_name = match.group(1).strip()
+                    var_value = match.group(2).strip()
+                    
+                    # Check if this is a multi-line value (ends with comma and not complete)
+                    # Continue reading lines until we find one that doesn't end with a comma
+                    # or we hit the end of the namelist
+                    while var_value.rstrip().endswith(',') and i < len(lines):
+                        next_line = lines[i].strip()
+                        i += 1
+                        
+                        # Stop if we hit end of namelist or start of new namelist
+                        if next_line.startswith('/') or next_line.startswith('&'):
+                            i -= 1  # Back up so we process this line next iteration
+                            break
+                        
+                        # Skip empty lines and comments in continuation
+                        if not next_line or next_line.startswith('!'):
+                            continue
+                        
+                        # Stop if we hit a new variable assignment
+                        if '=' in next_line and not next_line.strip().startswith("'"):
+                            i -= 1  # Back up so we process this line next iteration
+                            break
+                        
+                        # Append the continuation line
+                        var_value += ' ' + next_line.strip()
+                    
+                    # Remove trailing comma if present
+                    var_value = var_value.rstrip(',').strip()
+                    
+                    # Convert to appropriate Python type
+                    nml_dict[current_nml][var_name] = convert_fortran_value(var_value)
+
+        return nml_dict
+    
+    nml_data = parse_fortran_namelist(input_nml_path)
+    filter_nml = nml_data.get('filter_nml', {})   
 
     def get(key, idx, default):
         arr = filter_nml.get(key, [default, default])
