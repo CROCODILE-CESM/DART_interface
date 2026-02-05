@@ -25,6 +25,7 @@ import glob
 import re
 from pathlib import Path
 from collections import namedtuple
+import fnmatch
 logging.basicConfig(level=logging.INFO)
 
 ModelTime = namedtuple('ModelTime', ['year', 'month', 'day', 'seconds'])
@@ -345,13 +346,10 @@ def stage_inflation_files(rundir):
         if missing:
             raise FileNotFoundError(f"Missing posterior inflation file(s) in {rundir}: {', '.join(missing)}")
 
-def rename_inflation_files(case, model_time, rundir):
+def rename_inflation_files(rundir):
     """
-    Rename inflation restart files to include case name and model time.
-    Copy renamed files to input_{prior|post}inf_{mean|sd}.nc for next cycle.
+    Copy inflation output files to input_{prior|post}inf_{mean|sd}.nc for next cycle.
     """
-    case_name = case.get_value("CASE")
-    date_str = f"{model_time.year:04}-{model_time.month:02}-{model_time.day:02}-{model_time.seconds:05}"
     
     inflation_files = [
         "priorinf_mean",
@@ -363,13 +361,10 @@ def rename_inflation_files(case, model_time, rundir):
     for base_name in inflation_files:
         src = os.path.join(rundir, f"output_{base_name}.nc")
         if os.path.exists(src):
-            dest = os.path.join(rundir, f"output_{base_name}.{case_name}.{date_str}")
-            os.rename(src, dest)
-            logger.info(f"Renamed {base_name} to {dest}")
             # create input file for next cycle
             input_dest = os.path.join(rundir, f"input_{base_name}.nc")
-            shutil.copy(dest, input_dest)
-            logger.info(f"Copied {dest} to {input_dest} for next cycle")
+            shutil.copy(src, input_dest)
+            logger.info(f"Copied {src} to {input_dest} for next cycle")
 
 
 def clean_up(rundir):
@@ -470,6 +465,34 @@ def rename_obs_seq_final(case, model_time, rundir):
     os.rename(obs_seq_final, new_obs_seq_final)
     logger.info(f"Renamed obs_seq.final to {new_obs_seq_final}")
 
+def rename_stage_files(case, model_time, rundir):
+    """
+    Rename any filter files input, forecast, preassim, postassim, analysis, output
+    Each stage can have: memberX and mean and sd
+    to include case name and model time.
+    input_inflation files should not be renamed as they are needed for next cycle.
+    """
+    case_name = case.get_value("CASE")
+    date_str = f"{model_time.year:04}-{model_time.month:02}-{model_time.day:02}-{model_time.seconds:05}"
+    stages = ["input", "forecast", "preassim", "postassim", "analysis", "output"]
+    # Match memberX (any number), mean, sd, and inf
+    members = ["member*", "mean", "sd", "priorinf_mean", "priorinf_sd", "postinf_mean", "postinf_sd"]
+    for stage in stages:
+        # member* will match input_member1.nc, input_member2.nc, etc.
+        for member in members:
+            pattern = os.path.join(rundir, f"{stage}_{member}.nc")
+            for filepath in glob.glob(pattern):
+                base = os.path.splitext(os.path.basename(filepath))[0]
+                # Only skip inflation files (e.g., input_priorinf_mean.nc, etc.)
+                if fnmatch.fnmatch(base, "input_*inf*"):
+                    logger.info(f"Skipping inflation file rename: {filepath}")
+                    continue
+                new_name = f"{base}.{case_name}.{date_str}.nc"
+                new_path = os.path.join(rundir, new_name)
+                os.rename(filepath, new_path)
+                logger.info(f"Renamed {filepath} to {new_path}")
+
+
 def run_filter(case, caseroot, use_mpi=True):
     """Run the DART filter executable."""
     
@@ -544,7 +567,10 @@ def run_filter(case, caseroot, use_mpi=True):
         rename_obs_seq_final(case, model_time, rundir)
 
         # Rename inflation files and setup next cycle
-        rename_inflation_files(case, model_time, rundir)
+        rename_inflation_files(rundir)
+
+        # Rename any filter "stages to write"  files to include case and model time
+        rename_stage_files(case, model_time, rundir)
 
         # Clean up and restore mom input.nml
         clean_up(rundir)

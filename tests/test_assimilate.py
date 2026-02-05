@@ -13,6 +13,7 @@ from unittest.mock import Mock, patch, mock_open, MagicMock, call
 from pathlib import Path
 import tempfile
 import shutil
+import fnmatch
 
 # Mock CIME modules before importing assimilate
 sys.modules['standard_script_setup'] = Mock()
@@ -346,6 +347,82 @@ class TestGetModelTime:
         with pytest.raises(ValueError, match="DRV_RESTART_POINTER is not set"):
             assimilate.get_model_time(mock_case)
 
+class TestRenameInflationFiles:
+    """
+    Test rename_inflation_files function matches implementation:
+    - Renames output_* files to dart_output_*.<case>.<date_str>.nc
+    - Copies dart_output_* files to input_* files for next cycle
+    """
+    def test_rename_inflation_files(self, tmp_path):
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+ 
+        # Create dummy inflation files
+        files = {
+            "priorinf_mean": "prior mean",
+            "priorinf_sd": "prior sd",
+            "postinf_mean": "post mean",
+            "postinf_sd": "post sd"
+        }
+        for base, content in files.items():
+            (rundir / f"output_{base}.nc").write_text(content)
+
+        assimilate.rename_inflation_files(str(rundir))
+  
+        # Check input_* files
+        for base, content in files.items():
+            input_file = rundir / f"input_{base}.nc"
+            assert input_file.exists()
+            assert input_file.read_text() == content
+
+        # Original files should exist
+        for base in files:
+            assert (rundir / f"output_{base}.nc").exists()
+
+class TestRenameStageFiles:
+    """
+    Test rename_stage_files function.
+    """
+    def test_rename_stage_files(self, tmp_path):
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        case = Mock()
+        case.get_value.return_value = "testcase"
+
+        # Define all stages and members
+        stages = ["input", "forecast", "preassim", "postassim", "analysis", "output"]
+        members = ["mean", "sd", "priorinf_mean", "priorinf_sd", "postinf_mean", "postinf_sd"] + [f"member{i}" for i in range(1, 4)]
+
+        # Create all expected files and their content
+        files = {}
+        for stage in stages:
+            for member in members:
+                key = f"{stage}_{member}"
+                files[key] = f"{stage} {member}"
+
+        for base, content in files.items():
+            print(f"filename: {base}.nc")
+            (rundir / f"{base}.nc").write_text(content)
+
+        model_time = ModelTime(2001, 1, 15, 43200)
+        assimilate.rename_stage_files(case, model_time, str(rundir))
+        date_str = "2001-01-15-43200"
+
+        # Check renamed staged files, except for input_*inf*, output_*inf* files
+        for base, content in files.items():
+            if fnmatch.fnmatch(base, "input_*inf*"):
+                print(f"skipping check for {base}.nc")
+                continue
+            dart_file = rundir / f"{base}.testcase.{date_str}.nc"
+            assert dart_file.exists(), f"Missing {dart_file}"
+            assert dart_file.read_text() == content
+
+        # Original files should not exist, except for input_*inf* and output_*inf* files
+        for base in files:
+            if fnmatch.fnmatch(base, "input_*inf*" ):
+                assert (rundir / f"{base}.nc").exists(), f"Should exist: {base}.nc"
+            else:
+                assert not (rundir / f"{base}.nc").exists(), f"Should not exist: {base}.nc"
 
 class TestRunFilter:
     """
