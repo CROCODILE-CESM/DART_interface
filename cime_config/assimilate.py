@@ -485,12 +485,12 @@ def rename_stage_files(case, model_time, rundir):
                 base = os.path.splitext(os.path.basename(filepath))[0]
                 # Only skip inflation files (e.g., input_priorinf_mean.nc, etc.)
                 if fnmatch.fnmatch(base, "input_*inf*"):
-                    logger.info(f"Skipping inflation file rename: {filepath}")
+                    logger.debug(f"Skipping inflation file rename: {filepath}")
                     continue
                 new_name = f"{base}.{case_name}.{date_str}.nc"
                 new_path = os.path.join(rundir, new_name)
                 os.rename(filepath, new_path)
-                logger.info(f"Renamed {filepath} to {new_path}")
+                logger.debug(f"Renamed {filepath} to {new_path}")
 
 
 def run_filter(case, caseroot, use_mpi=True):
