@@ -584,10 +584,11 @@ def run_filter(case, caseroot, use_mpi=True):
 
 # assimilate function so cime run_sub_or_cmd finds calls this function from assimilate.py
 # function needs to have the same name as the script.
-def assimilate(caseroot, rundir=None, use_mpi=True):
+def assimilate(caseroot, cycle, rundir=None, use_mpi=True):
     """
     Main entry point for data assimilation, callable as a function.
     caseroot: Path to the case root directory.
+    cycle: Optional cycle identifier (string or int).
     rundir: Optionally override the run directory (otherwise taken from case).
     use_mpi: Whether to use MPI to run the filter (default True). This is to 
              allow serial runs for testing on login nodes.
@@ -603,10 +604,11 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Run DART assimilation for a CESM case.")
     parser.add_argument("caseroot", help="Path to the case root directory.")
+    parser.add_argument("cycle", help="Cycle number.")
     parser.add_argument("--no-mpi", action="store_true", help="Run filter without MPI (serial mode, for testing on login node).")
     args = parser.parse_args()
     use_mpi = not args.no_mpi
-    assimilate(args.caseroot, use_mpi=use_mpi)
+    assimilate(args.caseroot, cycle=args.cycle, use_mpi=use_mpi)
 
 if __name__ == "__main__":
     main()
