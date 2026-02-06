@@ -670,10 +670,10 @@ class TestMain:
     @patch('assimilate.Case')
     @patch('assimilate.run_filter')
     def test_assimilate_function_default(self, mock_run_filter, mock_Case):
-        """Test assimilate() function with caseroot argument (default use_mpi)."""
+        """Test assimilate() function with caseroot and cycle argument (default use_mpi)."""
         mock_case_instance = Mock()
         mock_Case.return_value.__enter__.return_value = mock_case_instance
-        assimilate.assimilate("/case/root")
+        assimilate.assimilate("/case/root", 1)
         mock_Case.assert_called_once_with("/case/root")
         mock_run_filter.assert_called_once_with(mock_case_instance, "/case/root", use_mpi=True)
 
@@ -683,7 +683,7 @@ class TestMain:
         """Test assimilate() function with use_mpi=False."""
         mock_case_instance = Mock()
         mock_Case.return_value.__enter__.return_value = mock_case_instance
-        assimilate.assimilate("/case/root", use_mpi=False)
+        assimilate.assimilate("/case/root", 2, use_mpi=False)
         mock_Case.assert_called_once_with("/case/root")
         mock_run_filter.assert_called_once_with(mock_case_instance, "/case/root", use_mpi=False)
 
@@ -691,10 +691,10 @@ class TestMain:
     @patch('assimilate.Case')
     @patch('assimilate.run_filter')
     def test_main_with_argv(self, mock_run_filter, mock_Case):
-        """Test main() with command-line caseroot argument (default: use_mpi)."""
+        """Test main() with command-line caseroot and cycle argument (default: use_mpi)."""
         mock_case_instance = Mock()
         mock_Case.return_value.__enter__.return_value = mock_case_instance
-        test_argv = ["assimilate.py", "/case/root"]
+        test_argv = ["assimilate.py", "/case/root", "3"]
         with patch('sys.argv', test_argv):
             assimilate.main()
         mock_Case.assert_called_once_with("/case/root")
@@ -706,20 +706,27 @@ class TestMain:
         """Test main() with --no-mpi flag disables MPI."""
         mock_case_instance = Mock()
         mock_Case.return_value.__enter__.return_value = mock_case_instance
-        test_argv = ["assimilate.py", "/case/root", "--no-mpi"]
+        test_argv = ["assimilate.py", "/case/root", "4", "--no-mpi"]
         with patch('sys.argv', test_argv):
             assimilate.main()
         mock_Case.assert_called_once_with("/case/root")
         mock_run_filter.assert_called_once_with(mock_case_instance, "/case/root", use_mpi=False)
 
     def test_main_no_argv_errors(self):
-        """Test main() errors if no caseroot argument is given."""
+        """Test main() errors if no caseroot or cycle argument is given."""
         import io
         test_argv = ["assimilate.py"]
         with patch('sys.argv', test_argv), patch('sys.stderr', new_callable=io.StringIO) as mock_stderr:
             with pytest.raises(SystemExit) as excinfo:
                 assimilate.main()
             assert excinfo.value.code == 2  # argparse exits with code 2 for missing required args
+
+        # Also test missing cycle argument
+        test_argv = ["assimilate.py", "/case/root"]
+        with patch('sys.argv', test_argv), patch('sys.stderr', new_callable=io.StringIO) as mock_stderr:
+            with pytest.raises(SystemExit) as excinfo:
+                assimilate.main()
+            assert excinfo.value.code == 2
 
 
 if __name__ == "__main__":
