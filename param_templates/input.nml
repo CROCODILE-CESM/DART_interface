@@ -52,8 +52,8 @@
   output_members = .TRUE.
   obs_sequence_in_name = "obs_seq.out"
   obs_sequence_out_name = "obs_seq.final"
-  init_time_days = 0
-  init_time_seconds = 0
+  init_time_days = -1
+  init_time_seconds = -1
   first_obs_days = -1
   first_obs_seconds = -1
   last_obs_days = -1
@@ -126,7 +126,22 @@
 /
 
 &obs_kind_nml
-  assimilate_these_obs_types = 'null'
+  assimilate_these_obs_types = 'FLOAT_SALINITY',
+                               'FLOAT_TEMPERATURE',
+                               'DRIFTER_SALINITY',
+                               'DRIFTER_TEMPERATURE',
+                               'GLIDER_SALINITY',
+                               'GLIDER_TEMPERATURE',
+                               'MOORING_SALINITY',
+                               'MOORING_TEMPERATURE',
+                               'BOTTLE_SALINITY',
+                               'BOTTLE_TEMPERATURE',
+                               'CTD_SALINITY',
+                               'CTD_TEMPERATURE',
+                               'XCTD_SALINITY',
+                               'XCTD_TEMPERATURE',
+                               'XBT_TEMPERATURE',
+                               'APB_TEMPERATURE',
   evaluate_these_obs_types = 'null'
   use_precomputed_fos_these_obs_types = 'null'
 /
@@ -171,7 +186,11 @@
   ocean_geometry = 'ocean_geometry.nc'
   assimilation_period_days = 1
   assimilation_period_seconds = 0
-  model_state_variables = ' '
+  model_state_variables = 'Salt', 'QTY_SALINITY', 'UPDATE',
+                          'Temp', 'QTY_POTENTIAL_TEMPERATURE', 'UPDATE',
+                          'u', 'QTY_U_CURRENT_COMPONENT', 'UPDATE',
+                          'v', 'QTY_V_CURRENT_COMPONENT', 'UPDATE',
+                          'h', 'QTY_LAYER_THICKNESS', 'UPDATE',
   layer_name = 'Layer'
   use_pseudo_depth = .FALSE.
 /

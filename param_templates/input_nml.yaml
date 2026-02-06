@@ -112,9 +112,9 @@ filter_nml:
     - 1000000.0
     - 1000000.0
   init_time_days:
-    values: 0
+    values: -1
   init_time_seconds:
-    values: 0
+    values: -1
   input_state_file_list:
     values: ''
   input_state_files:
@@ -219,7 +219,22 @@ model_nml:
   layer_name:
     values: Layer
   model_state_variables:
-    values: ''
+    values:
+    - Salt
+    - QTY_SALINITY
+    - UPDATE
+    - Temp
+    - QTY_POTENTIAL_TEMPERATURE
+    - UPDATE
+    - u
+    - QTY_U_CURRENT_COMPONENT
+    - UPDATE
+    - v
+    - QTY_V_CURRENT_COMPONENT
+    - UPDATE
+    - h
+    - QTY_LAYER_THICKNESS
+    - UPDATE
   ocean_geometry:
     values: ocean_geometry.nc
   static_file:
@@ -251,7 +266,23 @@ mpi_utilities_nml:
     values: false
 obs_kind_nml:
   assimilate_these_obs_types:
-    values: 'null'
+    values:
+    - FLOAT_SALINITY
+    - FLOAT_TEMPERATURE
+    - DRIFTER_SALINITY
+    - DRIFTER_TEMPERATURE
+    - GLIDER_SALINITY
+    - GLIDER_TEMPERATURE
+    - MOORING_SALINITY
+    - MOORING_TEMPERATURE
+    - BOTTLE_SALINITY
+    - BOTTLE_TEMPERATURE
+    - CTD_SALINITY
+    - CTD_TEMPERATURE
+    - XCTD_SALINITY
+    - XCTD_TEMPERATURE
+    - XBT_TEMPERATURE
+    - APB_TEMPERATURE
   evaluate_these_obs_types:
     values: 'null'
   use_precomputed_fos_these_obs_types:

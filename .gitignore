@@ -6,3 +6,4 @@ cime_config/buildlibc
 *$py.class
 buildnmlc
 .coverage
+.vscode
