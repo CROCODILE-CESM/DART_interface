@@ -238,7 +238,7 @@ model_nml:
   ocean_geometry:
     values: ocean_geometry.nc
   static_file:
-    values: static.nc
+    values: mom6_static.nc
   template_file:
     values: mom6.r.nc
   use_pseudo_depth:
