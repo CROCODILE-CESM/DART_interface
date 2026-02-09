@@ -353,7 +353,7 @@
          "values": "ocean_geometry.nc"
       },
       "static_file": {
-         "values": "mom6_static.nc"
+         "values": "mom6.static.nc"
       },
       "template_file": {
          "values": "mom6.r.nc"
