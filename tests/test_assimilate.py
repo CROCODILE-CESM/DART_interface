@@ -663,6 +663,117 @@ inf_initial                 = 1.1,                     1.2,
             assimilate.stage_inflation_files(str(rundir))
 
 
+class TestCopyGeometryFileForCycle0:
+    """Test copy_geometry_file_for_cycle0 function."""
+    
+    def test_copy_geometry_on_cycle_0(self, tmp_path):
+        """Test that geometry file is copied on cycle 0."""
+        mock_case = Mock()
+        mock_case.get_value.return_value = "testcase"
+        
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        
+        # Create a geometry file
+        geometry_file = rundir / "testcase.mom6.h.ocean_geometry.nc"
+        geometry_file.write_text("geometry data")
+        
+        assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), 0)
+        
+        # Check that ocean_geometry.nc was created
+        ocean_geometry = rundir / "ocean_geometry.nc"
+        assert ocean_geometry.exists()
+        assert ocean_geometry.read_text() == "geometry data"
+    
+    def test_no_copy_on_non_zero_cycle(self, tmp_path):
+        """Test that geometry file is not copied on cycles other than 0."""
+        mock_case = Mock()
+        mock_case.get_value.return_value = "testcase"
+        
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        
+        # Create a geometry file
+        geometry_file = rundir / "testcase.mom6.h.ocean_geometry.nc"
+        geometry_file.write_text("geometry data")
+        
+        assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), 1)
+        
+        # Check that ocean_geometry.nc was NOT created
+        ocean_geometry = rundir / "ocean_geometry.nc"
+        assert not ocean_geometry.exists()
+    
+    def test_multiple_geometry_files_picks_first(self, tmp_path):
+        """Test that when multiple geometry files exist, the first (sorted) is copied."""
+        mock_case = Mock()
+        mock_case.get_value.return_value = "testcase"
+        
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        
+        # Create multiple geometry files
+        (rundir / "testcase.mom6.h.ocean_geometry_2.nc").write_text("geometry 2")
+        (rundir / "testcase.mom6.h.ocean_geometry_1.nc").write_text("geometry 1")
+        (rundir / "testcase.mom6.h.ocean_geometry_3.nc").write_text("geometry 3")
+        
+        assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), 0)
+        
+        # Should pick the first alphabetically sorted file
+        ocean_geometry = rundir / "ocean_geometry.nc"
+        assert ocean_geometry.exists()
+        assert ocean_geometry.read_text() == "geometry 1"
+    
+    def test_missing_geometry_file_logs_warning(self, tmp_path, caplog):
+        """Test that missing geometry file logs a warning on cycle 0."""
+        import logging
+        caplog.set_level(logging.WARNING)
+        
+        mock_case = Mock()
+        mock_case.get_value.return_value = "testcase"
+        
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        # No geometry file created
+        
+        assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), 0)
+        
+        assert "no geometry files matching" in caplog.text.lower()
+    
+    def test_non_integer_cycle_string(self, tmp_path, caplog):
+        """Test that non-integer cycle value logs warning and does nothing."""
+        import logging
+        caplog.set_level(logging.WARNING)
+        
+        mock_case = Mock()
+        mock_case.get_value.return_value = "testcase"
+        
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        
+        assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), "not_a_number")
+        
+        assert "not an integer" in caplog.text.lower()
+    
+    def test_cycle_as_string_zero(self, tmp_path):
+        """Test that cycle as string '0' works correctly."""
+        mock_case = Mock()
+        mock_case.get_value.return_value = "testcase"
+        
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        
+        # Create a geometry file
+        geometry_file = rundir / "testcase.mom6.h.ocean_geometry.nc"
+        geometry_file.write_text("geometry data")
+        
+        assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), "0")
+        
+        # Check that ocean_geometry.nc was created
+        ocean_geometry = rundir / "ocean_geometry.nc"
+        assert ocean_geometry.exists()
+        assert ocean_geometry.read_text() == "geometry data"
+
+
 class TestMain:
     """Test main and assimilate() entry points."""
 

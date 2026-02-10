@@ -113,7 +113,7 @@ def set_restart_files(rundir, model_time):
     logger.info(f"Copied {filter_input_list} to {filter_output_list}")
 
 def set_template_files(case, rundir):
-    """Create symlinks for template files (mom6.r.nc, mom6.static.nc, and ocean_geometry.nc)."""
+    """Create symlinks for template files (mom6.r.nc, mom6.static.nc)."""
     # Create symlink mom6.r.nc pointing to first file in filter_input_list.txt
     filter_input_list = os.path.join(rundir, "filter_input_list.txt")
     if os.path.exists(filter_input_list):
@@ -147,21 +147,6 @@ def set_template_files(case, rundir):
         logger.info(f"Created symlink: {mom6_static_nc} -> {first_static_file}")
     else:
         logger.warning(f"No static files matching {static_pattern} found")
-    
-    # Create symlink ocean_geometry.nc pointing to first matching geometry file
-    geometry_pattern = os.path.join(rundir, f"{casename}.mom6.h.ocean_geometry*")
-    geometry_files = sorted(glob.glob(geometry_pattern))
-    
-    if geometry_files:
-        first_geometry_file = geometry_files[0]
-        ocean_geometry_nc = os.path.join(rundir, "ocean_geometry.nc")
-        # Remove existing symlink if present
-        if os.path.exists(ocean_geometry_nc) or os.path.islink(ocean_geometry_nc):
-            os.remove(ocean_geometry_nc)
-        os.symlink(first_geometry_file, ocean_geometry_nc)
-        logger.info(f"Created symlink: {ocean_geometry_nc} -> {first_geometry_file}")
-    else:
-        logger.warning(f"No geometry files matching {geometry_pattern} found")
 
 def parse_inflation_settings(input_nml_path):
     """
@@ -493,6 +478,32 @@ def rename_stage_files(case, model_time, rundir):
                 logger.debug(f"Renamed {filepath} to {new_path}")
 
 
+def copy_geometry_file_for_cycle0(case, rundir, cycle):
+    """
+    On cycle 0, copy the geometry file to ocean_geometry.nc so it is available for later cycles.
+    MOM6 only writes the geometry file on cycle 0, which is then archived.
+    """
+    try:
+        cycle_int = int(cycle)
+    except (ValueError, TypeError):
+        # If cycle is not an integer, do nothing
+        logger.warning(f"Cycle '{cycle}' is not an integer, skipping geometry file copy")
+        return
+
+    if cycle_int == 0:
+        casename = case.get_value("CASE")
+        geometry_pattern = os.path.join(rundir, f"{casename}.mom6.h.ocean_geometry*")
+        geometry_files = sorted(glob.glob(geometry_pattern))
+        if geometry_files:
+            first_geometry_file = geometry_files[0]
+            ocean_geometry_nc = os.path.join(rundir, "ocean_geometry.nc")
+            # Copy (not symlink) the file so it persists after archiving
+            shutil.copy(first_geometry_file, ocean_geometry_nc)
+            logger.info(f"Copied {first_geometry_file} to {ocean_geometry_nc} for cycle 0")
+        else:
+            logger.warning(f"No geometry files matching {geometry_pattern} found for cycle 0")
+
+
 def run_filter(case, caseroot, use_mpi=True):
     """Run the DART filter executable."""
     
@@ -596,6 +607,8 @@ def assimilate(caseroot, cycle, rundir=None, use_mpi=True):
     with Case(caseroot) as case:
         if rundir is None:
             rundir = case.get_value("RUNDIR")
+        # Copy geometry file on cycle 0 so it is available for subsequent cycles
+        copy_geometry_file_for_cycle0(case, rundir, cycle)
         run_filter(case, caseroot, use_mpi=use_mpi)
 
 # Updated main() to use assimilate()
