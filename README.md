@@ -177,10 +177,10 @@ https://github.com/CROCODILE-CESM/DART_interface.git
 Branch: `main`  
 Tag: `croc-0.0.1` 
 
-**CIME:** The Common Infrastructure for Modeling the Earth
-https://github.com/hkershaw-brown/cime
-Branch: `dart-cime6.1.127`
-Tag: `vdart-cime6.1.127`
+**CIME:** The Common Infrastructure for Modeling the Earth  
+https://github.com/hkershaw-brown/cime  
+Branch: `dart-cime6.1.127`  
+Tag: `vdart-cime6.1.127`  
 
 # Testing
 
