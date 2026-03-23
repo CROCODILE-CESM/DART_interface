@@ -7,3 +7,4 @@ cime_config/buildlibc
 buildnmlc
 .coverage
 .vscode
+err
