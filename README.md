@@ -175,7 +175,7 @@ Tag: `vdart-cmeps1.1.17`
 **DART_interface** (this repository)  
 https://github.com/CROCODILE-CESM/DART_interface.git  
 Branch: `main`  
-Tag: `croc-0.0.1` 
+Tag: `croc-0.0.2` Global CESM 
 
 **CIME:** The Common Infrastructure for Modeling the Earth  
 https://github.com/hkershaw-brown/cime  
