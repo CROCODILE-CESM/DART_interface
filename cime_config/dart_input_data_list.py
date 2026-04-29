@@ -7,12 +7,14 @@ from CIME.ParamGen.paramgen import ParamGen
 
 class DART_input_data_list(ParamGen):
     '''
-    Stage DART input_data_list file
-    This is the list of observation sequences
-    TODO: this is using the run_startdate + the stop option, 
-      but I think this should be the model_time + the stop option
-    If using startdate the observations need to be for the entire
-    experiment. 
+    Stage DART input_data_list file.
+    The list is generated from the template input_data_list.json based on
+    logic here.  A section is written for each active DA component:
+      DATA_ASSIMILATION_OCN == True  ->  ocean obs_seq entries
+      DATA_ASSIMILATION_ATM == True  ->  atmosphere obs_seq entries
+      DATA_ASSIMILATION_LND == True  ->  land obs_seq entries
+      DATA_ASSIMILATION_ICE == True  ->  sea ice obs_seq entries
+    Only files whose year falls within [run_startyear, run_endyear] are written.
     '''
 
     def write(self, output_path, case):
@@ -34,39 +36,35 @@ class DART_input_data_list(ParamGen):
                 (stop_option == "nmonths") * 86400 * 31 + \
                 (stop_option == "nyears") * 86400 * 366 \
             ) * stop_n
-        
-        assert upper_run_duration_sec>0, \
-            "DART namelist generator couldn't determine the run duration. This is likely "+\
-            "Due to an unsupported STOP_OPTION selection."
 
-        #calculate an upper limit on run end year
+        assert upper_run_duration_sec > 0, \
+            "DART namelist generator couldn't determine the run duration. This is likely " + \
+            "due to an unsupported STOP_OPTION selection."
+
+        # calculate an upper limit on run end year
         run_endyear = int(run_startyear + upper_run_duration_sec / (86400 * 360))
-
-        data_assimilation = {
-            cc: case.get_value(f"DATA_ASSIMILATION_{cc.upper()}")
-            for cc in ["atm", "cpl", "ocn", "wav", "glc", "ice", "rof", "lnd"]
-        }
-        n_da_comp = sum(data_assimilation.values())
-
-        # todo: to remove the below assertion, generalize the way file_year is deducted below
-        assert n_da_comp==0 or (n_da_comp==1 and data_assimilation["ocn"] is True), \
-            "While attempting to write dart.input_data_list, an unsupported combination of "+\
-            "DATA_ASSIMILATION flag was encountered."
 
         with open(os.path.join(output_path), 'w') as f:
             for file_category, file_paths in self.data['dart.input_data_list'].items():
                 if file_paths is not None:
                     if not isinstance(file_paths, list):
-                         file_paths = [file_paths]
-                    for i,file_path in enumerate(file_paths):
-                        file_path = file_path.replace('"','').replace("'","")
-                        file_year = int(file_path.split('.')[-1][:4]) #todo: generalize the way file_year is deducted.
-                        if not (run_startyear <= file_year <= run_endyear):
-                            continue
+                        file_paths = [file_paths]
+                    for i, file_path in enumerate(file_paths):
+                        file_path = file_path.replace('"', '').replace("'", "")
+                        # Extract year from filename for date-range filtering.
+                        # Convention: the year appears as the first 4-digit token in the
+                        # last dot-delimited segment of the filename.
+                        import re
+                        basename = os.path.basename(file_path)
+                        year_match = re.search(r'(\d{4})', basename)
+                        if year_match:
+                            file_year = int(year_match.group(1))
+                            if not (run_startyear <= file_year <= run_endyear):
+                                continue
                         if os.path.isabs(file_path):
                             f.write(f"{file_category.strip()}({str(i)}) = {file_path}\n")
                 else:
-                    pass # skip if custom INPUTDIR is used.
+                    pass  # skip if custom INPUTDIR is used.
 
 
 

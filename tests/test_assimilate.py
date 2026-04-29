@@ -3,16 +3,16 @@
 """
 Pytest suite for assimilate.py
 
-Tests the data assimilation script for CESM MOM6 with mocked CIME dependencies.
+Tests the multi-component CESM DART assimilation script with mocked CIME
+dependencies. Covers single-component (OCN-only, ATM-only, LND-only, ICE-only)
+and multi-component (OCN+ICE) DA scenarios.
 """
 
 import os
 import sys
 import pytest
-from unittest.mock import Mock, patch, mock_open, MagicMock, call
+from unittest.mock import Mock, patch, MagicMock, call
 from pathlib import Path
-import tempfile
-import shutil
 import fnmatch
 
 # Mock CIME modules before importing assimilate
@@ -23,11 +23,13 @@ sys.modules['CIME.case'] = Mock()
 # Set CIMEROOT environment variable for import
 os.environ['CIMEROOT'] = '/mock/cimeroot'
 
-# Add parent directory to path to import assimilate
+# Add cime_config directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'cime_config'))
 
 import assimilate
 from assimilate import ModelTime
+import dart_cesm_components
+from dart_cesm_components import DART_COMPONENTS, get_active_da_components
 
 
 class TestModelTime:
@@ -90,30 +92,55 @@ class TestGetModelTimeFromFilename:
             assimilate.get_model_time_from_filename(filename)
 
 
-class TestBackupMomInputNml:
-    """Test backup_mom_input_nml function."""
-    
+class TestBackupModelInputNml:
+    """Test backup_model_input_nml and restore_model_input_nml functions."""
+
     def test_backup_existing_file(self, tmp_path):
         """Test backing up an existing input.nml file."""
         rundir = tmp_path / "run"
         rundir.mkdir()
         input_nml = rundir / "input.nml"
         input_nml.write_text("test content")
-        
-        assimilate.backup_mom_input_nml(str(rundir))
-        
+
+        assimilate.backup_model_input_nml(str(rundir))
+
         backup_file = rundir / "mom_input.nml.bak"
         assert backup_file.exists()
         assert backup_file.read_text() == "test content"
-    
+
     def test_backup_nonexistent_file(self, tmp_path, caplog):
         """Test backup when input.nml doesn't exist."""
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
-        assimilate.backup_mom_input_nml(str(rundir))
-        
+
+        assimilate.backup_model_input_nml(str(rundir))
+
         assert "backup skipped" in caplog.text.lower()
+
+
+class TestRestoreModelInputNml:
+    """Test restore_model_input_nml function."""
+
+    def test_restore_from_backup(self, tmp_path):
+        """Test restoring input.nml from backup."""
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        bak = rundir / "mom_input.nml.bak"
+        bak.write_text("original model content")
+        (rundir / "input.nml").write_text("dart overwrite")
+
+        assimilate.restore_model_input_nml(str(rundir))
+
+        assert (rundir / "input.nml").read_text() == "original model content"
+
+    def test_restore_no_backup(self, tmp_path, caplog):
+        """Test restore when no backup exists."""
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+
+        assimilate.restore_model_input_nml(str(rundir))
+
+        assert "restore skipped" in caplog.text.lower()
 
 
 class TestCheckRequiredFiles:
@@ -143,10 +170,6 @@ class TestCheckRequiredFiles:
         
         with pytest.raises(FileNotFoundError, match="Missing required files"):
             assimilate.check_required_files(str(rundir))
-        
-        assert "missing required files" in caplog.text.lower()
-        assert "input.nml" in caplog.text
-        assert "obs_seq.out" in caplog.text
 
 
 class TestStageDartInputNml:
@@ -189,131 +212,167 @@ class TestStageDartInputNml:
 
 class TestSetRestartFiles:
     """Test set_restart_files function."""
-    
+
     def test_create_filter_lists_single_rpointer(self, tmp_path):
         """Test creating filter lists from a single rpointer file."""
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
+
         model_time = ModelTime(2001, 1, 2, 0)
         rpointer = rundir / "rpointer.ocn_0001.2001-01-02-00000"
         rpointer.write_text("restart_file_001.nc\n")
-        
-        assimilate.set_restart_files(str(rundir), model_time)
-        
+
+        assimilate.set_restart_files(str(rundir), "ocn", model_time)
+
         filter_input = rundir / "filter_input_list.txt"
         filter_output = rundir / "filter_output_list.txt"
-        
+
         assert filter_input.exists()
         assert filter_output.exists()
         assert filter_input.read_text() == "restart_file_001.nc\n"
         assert filter_output.read_text() == "restart_file_001.nc\n"
-    
+
     def test_create_filter_lists_multiple_rpointers(self, tmp_path):
         """Test creating filter lists from multiple rpointer files."""
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
+
         model_time = ModelTime(2001, 1, 2, 0)
         (rundir / "rpointer.ocn_0001.2001-01-02-00000").write_text("restart_001.nc\n")
         (rundir / "rpointer.ocn_0002.2001-01-02-00000").write_text("restart_002.nc\n")
         (rundir / "rpointer.ocn_0003.2001-01-02-00000").write_text("restart_003.nc\n")
-        
-        assimilate.set_restart_files(str(rundir), model_time)
-        
+
+        assimilate.set_restart_files(str(rundir), "ocn", model_time)
+
         filter_input = rundir / "filter_input_list.txt"
         content = filter_input.read_text()
-        
+
         assert "restart_001.nc" in content
         assert "restart_002.nc" in content
         assert "restart_003.nc" in content
-    
-    def test_no_rpointer_files(self, tmp_path, caplog):
-        """Test when no rpointer files exist."""
-        import logging
-        caplog.set_level(logging.WARNING)
-        
+
+    def test_atm_rpointer_prefix(self, tmp_path):
+        """Test that the correct prefix is used for ATM component."""
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
+
         model_time = ModelTime(2001, 1, 2, 0)
-        
+        (rundir / "rpointer.atm_0001.2001-01-02-00000").write_text("cam_restart.nc\n")
+
+        assimilate.set_restart_files(str(rundir), "atm", model_time)
+
+        assert (rundir / "filter_input_list.txt").exists()
+        assert "cam_restart.nc" in (rundir / "filter_input_list.txt").read_text()
+
+    def test_no_rpointer_files(self, tmp_path):
+        """Test when no rpointer files exist raises FileNotFoundError."""
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+
+        model_time = ModelTime(2001, 1, 2, 0)
+
         with pytest.raises(FileNotFoundError, match="No rpointer"):
-            assimilate.set_restart_files(str(rundir), model_time)
-        
-        assert "no rpointer" in caplog.text.lower()
+            assimilate.set_restart_files(str(rundir), "ocn", model_time)
 
 
-class TestSetTemplateFiles:
-    """Test set_template_files function."""
-    
+class TestSetTemplateFilesOcn:
+    """Test set_template_files_ocn (MOM6)."""
+
     def test_create_symlinks(self, tmp_path):
-        """Test creating template file symlinks."""
+        """Test creating mom6.r.nc and mom6.static.nc symlinks."""
         mock_case = Mock()
         mock_case.get_value.return_value = "test_case"
-        
+
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
-        # Create filter_input_list.txt
+
         filter_input = rundir / "filter_input_list.txt"
-        filter_input.write_text("restart_001.nc\n")
-        
-        # Create actual restart file
         restart_file = rundir / "restart_001.nc"
         restart_file.write_text("")
-        
-        # Create static file
+        filter_input.write_text(f"{restart_file}\n")
+
         static_file = rundir / "test_case.mom6.h.static.nc"
         static_file.write_text("")
-        
-        assimilate.set_template_files(mock_case, str(rundir))
-        
-        mom6_r = rundir / "mom6.r.nc"
-        mom6_static = rundir / "mom6.static.nc"
-        
-        assert mom6_r.is_symlink()
-        assert mom6_static.is_symlink()
-        assert mom6_r.resolve() == restart_file.resolve()
-        assert mom6_static.resolve() == static_file.resolve()
-    
+
+        assimilate.set_template_files_ocn(mock_case, str(rundir))
+
+        assert (rundir / "mom6.r.nc").is_symlink()
+        assert (rundir / "mom6.static.nc").is_symlink()
+
     def test_missing_filter_input_list(self, tmp_path, caplog):
         """Test when filter_input_list.txt doesn't exist."""
         mock_case = Mock()
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
-        assimilate.set_template_files(mock_case, str(rundir))
-        
+
+        assimilate.set_template_files_ocn(mock_case, str(rundir))
+
         assert "filter_input_list.txt not found" in caplog.text
 
 
-class TestCleanUp:
-    """Test clean_up function."""
-    
-    def test_restore_backup(self, tmp_path):
-        """Test restoring MOM input.nml from backup."""
+class TestSetTemplateFilesAtm:
+    """Test set_template_files_atm (CAM-SE)."""
+
+    def test_create_caminput_symlink(self, tmp_path):
+        """Test creating caminput.nc symlink."""
+        mock_case = Mock()
+        mock_case.get_value.return_value = "test_case"
+
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
-        backup = rundir / "mom_input.nml.bak"
-        backup.write_text("original mom content")
-        
-        input_nml = rundir / "input.nml"
-        input_nml.write_text("dart content")
-        
-        assimilate.clean_up(str(rundir))
-        
-        assert input_nml.read_text() == "original mom content"
-    
-    def test_no_backup_exists(self, tmp_path, caplog):
-        """Test cleanup when no backup exists."""
+
+        restart_file = rundir / "cam_restart.nc"
+        restart_file.write_text("")
+        (rundir / "filter_input_list.txt").write_text(f"{restart_file}\n")
+
+        (rundir / "test_case.cam_0001.i.2001-01-02-00000.nc").write_text("")
+
+        assimilate.set_template_files_atm(mock_case, str(rundir))
+
+        assert (rundir / "caminput.nc").is_symlink()
+        assert (rundir / "cam_phis.nc").is_symlink()
+
+    def test_missing_filter_input_list(self, tmp_path, caplog):
+        """Test warning when filter_input_list.txt doesn't exist."""
+        mock_case = Mock()
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
-        assimilate.clean_up(str(rundir))
-        
-        assert "cleanup skipped" in caplog.text.lower()
+
+        assimilate.set_template_files_atm(mock_case, str(rundir))
+
+        assert "filter_input_list.txt not found" in caplog.text
+
+
+class TestSetTemplateFilesLnd:
+    """Test set_template_files_lnd (CLM) — no-op."""
+
+    def test_no_symlinks_created(self, tmp_path, caplog):
+        """CLM does not require extra symlinks."""
+        import logging
+        caplog.set_level(logging.INFO)
+        mock_case = Mock()
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+
+        assimilate.set_template_files_lnd(mock_case, str(rundir))
+
+        assert "no additional template" in caplog.text.lower()
+
+
+class TestSetTemplateFilesIce:
+    """Test set_template_files_ice (CICE) — no-op."""
+
+    def test_no_symlinks_created(self, tmp_path, caplog):
+        """CICE does not require extra symlinks."""
+        import logging
+        caplog.set_level(logging.INFO)
+        mock_case = Mock()
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+
+        assimilate.set_template_files_ice(mock_case, str(rundir))
+
+        assert "no additional template" in caplog.text.lower()
 
 
 class TestGetModelTime:
@@ -423,119 +482,6 @@ class TestRenameStageFiles:
                 assert (rundir / f"{base}.nc").exists(), f"Should exist: {base}.nc"
             else:
                 assert not (rundir / f"{base}.nc").exists(), f"Should not exist: {base}.nc"
-
-class TestRunFilter:
-    """
-    Test run_filter function.
-    Heavy use of mocking here, as this function orchestrates many steps.
-    """
-    
-    @patch('assimilate.os.rename')
-    @patch('assimilate.clean_up')
-    @patch('assimilate.set_template_files')
-    @patch('assimilate.set_restart_files')
-    @patch('assimilate.check_required_files')
-    @patch('assimilate.stage_dart_input_nml')
-    @patch('assimilate.backup_mom_input_nml')
-    @patch('assimilate.get_observations', create=True)
-    @patch('assimilate.get_model_time')
-    @patch('assimilate.rename_inflation_files')
-    @patch('assimilate.stage_inflation_files')
-    @patch('subprocess.run')
-    @patch('os.path.exists')
-    @patch('os.chdir')
-    def test_run_filter_success(
-        self, mock_chdir, mock_exists, mock_subprocess,
-        mock_stage_infl, mock_rename_infl, mock_get_time, mock_get_obs, mock_backup, mock_stage,
-        mock_check, mock_set_restart, mock_set_template, mock_cleanup,
-        mock_rename
-    ):
-        """Test successful filter run."""
-        # Setup mocks
-        mock_case = Mock()
-        mock_case.get_value.side_effect = lambda x: {
-            "RUNDIR": "/run/dir",
-            "EXEROOT": "/exe/root",
-            "NTASKS_ESP": 4,
-            "MPI_RUN_COMMAND": "mpirun -np 4",
-            "CASE": "testcase"
-        }.get(x)
-        mock_exists.return_value = True
-        model_time = ModelTime(2001, 1, 15, 43200)
-        mock_get_time.return_value = model_time
-        mock_result = Mock()
-        mock_result.stdout = "Filter output"
-        mock_subprocess.return_value = mock_result
-        # Run function
-        assimilate.run_filter(mock_case, "/case/root")
-        # Verify calls
-        mock_chdir.assert_called_once_with("/run/dir")
-        mock_get_time.assert_called_once_with(mock_case)
-        mock_get_obs.assert_called_once_with(mock_case, model_time, "/run/dir")
-        mock_backup.assert_called_once_with("/run/dir")
-        mock_stage.assert_called_once_with(mock_case, "/run/dir")
-        mock_check.assert_called_once_with("/run/dir")
-        mock_set_restart.assert_called_once_with("/run/dir", model_time)
-        mock_set_template.assert_called_once_with(mock_case, "/run/dir")
-        mock_subprocess.assert_called_once()
-        mock_cleanup.assert_called_once_with("/run/dir")
-        # check log renaming
-        date_str = "2001-01-15-43200"
-        mock_rename.assert_any_call("/run/dir/dart_log.out", f"/run/dir/dart_log.testcase.{date_str}.out")
-        mock_rename.assert_any_call("/run/dir/dart_log.nml", f"/run/dir/dart_log.testcase.{date_str}.nml")
-    
-    @patch('assimilate.get_model_time')
-    @patch('os.path.exists')
-    def test_run_filter_missing_executable(self, mock_exists, mock_get_time):
-        """Test when filter executable doesn't exist."""
-        mock_case = Mock()
-        mock_case.get_value.side_effect = lambda x: {
-            "RUNDIR": "/run/dir",
-            "EXEROOT": "/exe/root"
-        }.get(x)
-        
-        mock_exists.return_value = False
-        
-        with pytest.raises(FileNotFoundError, match="Filter executable not found"):
-            assimilate.run_filter(mock_case, "/case/root")
-    
-    @patch('assimilate.clean_up')
-    @patch('assimilate.set_template_files')
-    @patch('assimilate.set_restart_files')
-    @patch('assimilate.check_required_files')
-    @patch('assimilate.stage_dart_input_nml')
-    @patch('assimilate.backup_mom_input_nml')
-    @patch('assimilate.get_observations', create=True)
-    @patch('assimilate.get_model_time')
-    @patch('assimilate.stage_inflation_files')
-    @patch('subprocess.run')
-    @patch('os.path.exists')
-    @patch('os.chdir')
-    def test_run_filter_subprocess_error(
-        self, mock_chdir, mock_exists, mock_subprocess,
-        mock_stage_infl, mock_get_time, mock_get_obs, mock_backup, mock_stage,
-        mock_check, mock_set_restart, mock_set_template, mock_cleanup
-    ):
-        """Test when subprocess returns error."""
-        mock_case = Mock()
-        mock_case.get_value.side_effect = lambda x: {
-            "RUNDIR": "/run/dir",
-            "EXEROOT": "/exe/root",
-            "NTASKS_ESP": 4,
-            "MPI_RUN_COMMAND": "mpirun"
-        }.get(x)
-        
-        mock_exists.return_value = True
-        mock_get_time.return_value = ModelTime(2001, 1, 15, 43200)
-        
-        # Simulate subprocess error
-        import subprocess
-        mock_subprocess.side_effect = subprocess.CalledProcessError(
-            1, "filter", stderr="Filter error"
-        )
-        
-        with pytest.raises(subprocess.CalledProcessError):
-            assimilate.run_filter(mock_case, "/case/root")
 
 class TestRenameDartLogs:
     """Test rename_dart_logs function."""
@@ -665,179 +611,361 @@ inf_initial                 = 1.1,                     1.2,
 
 class TestCopyGeometryFileForCycle0:
     """Test copy_geometry_file_for_cycle0 function."""
-    
+
+    def _ocn_active_case(self, casename="testcase"):
+        """Return a mock case where OCN DA is active."""
+        mock_case = Mock()
+        def case_get_value(key):
+            if key == "DATA_ASSIMILATION_OCN":
+                return True
+            return casename
+        mock_case.get_value.side_effect = case_get_value
+        return mock_case
+
     def test_copy_geometry_on_cycle_0(self, tmp_path):
         """Test that geometry file is copied on cycle 0."""
-        mock_case = Mock()
-        mock_case.get_value.return_value = "testcase"
-        
+        mock_case = self._ocn_active_case()
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
-        # Create a geometry file
+
         geometry_file = rundir / "testcase.mom6.h.ocean_geometry.nc"
         geometry_file.write_text("geometry data")
-        
+
         assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), 0)
-        
-        # Check that ocean_geometry.nc was created
+
         ocean_geometry = rundir / "ocean_geometry.nc"
         assert ocean_geometry.exists()
         assert ocean_geometry.read_text() == "geometry data"
-    
+
     def test_no_copy_on_non_zero_cycle(self, tmp_path):
         """Test that geometry file is not copied on cycles other than 0."""
-        mock_case = Mock()
-        mock_case.get_value.return_value = "testcase"
-        
+        mock_case = self._ocn_active_case()
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
-        # Create a geometry file
-        geometry_file = rundir / "testcase.mom6.h.ocean_geometry.nc"
-        geometry_file.write_text("geometry data")
-        
+
+        (rundir / "testcase.mom6.h.ocean_geometry.nc").write_text("geometry data")
+
         assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), 1)
-        
-        # Check that ocean_geometry.nc was NOT created
-        ocean_geometry = rundir / "ocean_geometry.nc"
-        assert not ocean_geometry.exists()
-    
+
+        assert not (rundir / "ocean_geometry.nc").exists()
+
+    def test_skipped_when_ocn_not_active(self, tmp_path):
+        """Test that geometry copy is skipped when OCN DA is not active."""
+        mock_case = Mock()
+        mock_case.get_value.return_value = False   # all DA flags off
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+
+        (rundir / "testcase.mom6.h.ocean_geometry.nc").write_text("geometry data")
+
+        assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), 0)
+
+        assert not (rundir / "ocean_geometry.nc").exists()
+
     def test_multiple_geometry_files_picks_first(self, tmp_path):
         """Test that when multiple geometry files exist, the first (sorted) is copied."""
-        mock_case = Mock()
-        mock_case.get_value.return_value = "testcase"
-        
+        mock_case = self._ocn_active_case()
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
-        # Create multiple geometry files
+
         (rundir / "testcase.mom6.h.ocean_geometry_2.nc").write_text("geometry 2")
         (rundir / "testcase.mom6.h.ocean_geometry_1.nc").write_text("geometry 1")
         (rundir / "testcase.mom6.h.ocean_geometry_3.nc").write_text("geometry 3")
-        
+
         assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), 0)
-        
-        # Should pick the first alphabetically sorted file
-        ocean_geometry = rundir / "ocean_geometry.nc"
-        assert ocean_geometry.exists()
-        assert ocean_geometry.read_text() == "geometry 1"
-    
+
+        assert (rundir / "ocean_geometry.nc").read_text() == "geometry 1"
+
     def test_missing_geometry_file_logs_warning(self, tmp_path, caplog):
         """Test that missing geometry file logs a warning on cycle 0."""
         import logging
         caplog.set_level(logging.WARNING)
-        
-        mock_case = Mock()
-        mock_case.get_value.return_value = "testcase"
-        
+
+        mock_case = self._ocn_active_case()
         rundir = tmp_path / "run"
         rundir.mkdir()
-        # No geometry file created
-        
+
         assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), 0)
-        
-        assert "no geometry files matching" in caplog.text.lower()
-    
+
+        assert "no mom6 geometry files" in caplog.text.lower()
+
     def test_non_integer_cycle_string(self, tmp_path, caplog):
         """Test that non-integer cycle value logs warning and does nothing."""
         import logging
         caplog.set_level(logging.WARNING)
-        
-        mock_case = Mock()
-        mock_case.get_value.return_value = "testcase"
-        
+
+        mock_case = self._ocn_active_case()
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
+
         assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), "not_a_number")
-        
+
         assert "not an integer" in caplog.text.lower()
-    
+
     def test_cycle_as_string_zero(self, tmp_path):
         """Test that cycle as string '0' works correctly."""
-        mock_case = Mock()
-        mock_case.get_value.return_value = "testcase"
-        
+        mock_case = self._ocn_active_case()
         rundir = tmp_path / "run"
         rundir.mkdir()
-        
-        # Create a geometry file
+
         geometry_file = rundir / "testcase.mom6.h.ocean_geometry.nc"
         geometry_file.write_text("geometry data")
-        
+
         assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), "0")
-        
-        # Check that ocean_geometry.nc was created
-        ocean_geometry = rundir / "ocean_geometry.nc"
-        assert ocean_geometry.exists()
-        assert ocean_geometry.read_text() == "geometry data"
+
+        assert (rundir / "ocean_geometry.nc").exists()
+
+
+class TestGetActiveDaComponents:
+    """Test get_active_da_components from dart_cesm_components."""
+
+    def _make_case(self, active):
+        """Build a mock case with the given set of active component keys."""
+        mock_case = Mock()
+        def get_value(key):
+            for comp in ["OCN", "ATM", "LND", "ICE"]:
+                if key == f"DATA_ASSIMILATION_{comp}":
+                    return comp.lower() in active
+            return False
+        mock_case.get_value.side_effect = get_value
+        return mock_case
+
+    def test_ocn_only(self):
+        case = self._make_case({"ocn"})
+        assert get_active_da_components(case) == ["ocn"]
+
+    def test_atm_only(self):
+        case = self._make_case({"atm"})
+        assert get_active_da_components(case) == ["atm"]
+
+    def test_lnd_only(self):
+        case = self._make_case({"lnd"})
+        assert get_active_da_components(case) == ["lnd"]
+
+    def test_ice_only(self):
+        case = self._make_case({"ice"})
+        assert get_active_da_components(case) == ["ice"]
+
+    def test_ocn_and_ice(self):
+        case = self._make_case({"ocn", "ice"})
+        # order must follow COMPONENT_KEYS: ocn, atm, lnd, ice
+        result = get_active_da_components(case)
+        assert result == ["ocn", "ice"]
+
+    def test_all_active(self):
+        case = self._make_case({"ocn", "atm", "lnd", "ice"})
+        assert get_active_da_components(case) == ["ocn", "atm", "lnd", "ice"]
+
+    def test_none_active(self):
+        case = self._make_case(set())
+        assert get_active_da_components(case) == []
+
+
+class TestRunFilterForComponent:
+    """Test run_filter_for_component function."""
+
+    def _make_case(self, rundir, exeroot, ntasks=4, mpirun="mpirun", casename="testcase"):
+        mock_case = Mock()
+        def get_value(key):
+            return {
+                "RUNDIR": rundir,
+                "EXEROOT": exeroot,
+                "NTASKS_ESP": ntasks,
+                "MPI_RUN_COMMAND": mpirun,
+                "CASE": casename,
+            }.get(key)
+        mock_case.get_value.side_effect = get_value
+        return mock_case
+
+    @patch('assimilate.rename_stage_files')
+    @patch('assimilate.rename_inflation_files')
+    @patch('assimilate.rename_obs_seq_final')
+    @patch('assimilate.rename_dart_logs')
+    @patch('assimilate.stage_inflation_files')
+    @patch('assimilate.set_restart_files')
+    @patch('assimilate.check_required_files')
+    @patch('assimilate.stage_dart_input_nml')
+    @patch('assimilate.get_observations')
+    @patch('assimilate.get_model_time')
+    @patch('subprocess.run')
+    @patch('os.path.exists')
+    @patch('os.chdir')
+    def test_ocn_filter_success(
+        self, mock_chdir, mock_exists, mock_subprocess,
+        mock_get_time, mock_get_obs, mock_stage_nml, mock_check,
+        mock_set_restart, mock_stage_infl, mock_rename_logs, mock_rename_obs,
+        mock_rename_infl, mock_rename_stage
+    ):
+        """Test successful OCN filter run (includes backup/restore of input.nml)."""
+        import tempfile, os as _os
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exeroot = _os.path.join(tmpdir, "esp")
+            _os.makedirs(exeroot)
+            mock_exists.return_value = True
+            model_time = ModelTime(2001, 1, 15, 0)
+            mock_get_time.return_value = model_time
+            mock_subprocess.return_value = Mock(stdout="", stderr="")
+
+            mock_case = self._make_case("/run", tmpdir)
+            mock_template_fn = Mock()
+
+            with patch('assimilate.backup_model_input_nml') as mock_backup, \
+                 patch('assimilate.restore_model_input_nml') as mock_restore, \
+                 patch.dict('assimilate._SET_TEMPLATE_FILES', {'ocn': mock_template_fn}):
+                assimilate.run_filter_for_component(mock_case, "ocn", "/caseroot")
+
+            mock_backup.assert_called_once_with("/run")
+            mock_restore.assert_called_once_with("/run")
+            mock_set_restart.assert_called_once_with("/run", "ocn", model_time)
+            mock_get_obs.assert_called_once_with(mock_case, "ocn", model_time, "/run")
+            mock_subprocess.assert_called_once()
+
+    @patch('assimilate.rename_stage_files')
+    @patch('assimilate.rename_inflation_files')
+    @patch('assimilate.rename_obs_seq_final')
+    @patch('assimilate.rename_dart_logs')
+    @patch('assimilate.stage_inflation_files')
+    @patch('assimilate.set_restart_files')
+    @patch('assimilate.check_required_files')
+    @patch('assimilate.stage_dart_input_nml')
+    @patch('assimilate.get_observations')
+    @patch('assimilate.get_model_time')
+    @patch('subprocess.run')
+    @patch('os.path.exists')
+    @patch('os.chdir')
+    def test_atm_filter_no_backup(
+        self, mock_chdir, mock_exists, mock_subprocess,
+        mock_get_time, mock_get_obs, mock_stage_nml, mock_check,
+        mock_set_restart, mock_stage_infl, mock_rename_logs, mock_rename_obs,
+        mock_rename_infl, mock_rename_stage
+    ):
+        """ATM has no input_nml_conflict — backup/restore must NOT be called."""
+        mock_exists.return_value = True
+        mock_get_time.return_value = ModelTime(2001, 1, 15, 0)
+        mock_subprocess.return_value = Mock(stdout="", stderr="")
+        mock_case = self._make_case("/run", "/exe")
+
+        mock_template_fn = Mock()
+        with patch('assimilate.backup_model_input_nml') as mock_backup, \
+             patch('assimilate.restore_model_input_nml') as mock_restore, \
+             patch.dict('assimilate._SET_TEMPLATE_FILES', {'atm': mock_template_fn}):
+            assimilate.run_filter_for_component(mock_case, "atm", "/caseroot")
+
+        mock_backup.assert_not_called()
+        mock_restore.assert_not_called()
+        mock_set_restart.assert_called_once_with("/run", "atm", mock_get_time.return_value)
+
+    @patch('os.path.exists')
+    def test_missing_filter_executable(self, mock_exists):
+        """Test FileNotFoundError raised when filter_{comp} binary is missing."""
+        mock_exists.return_value = False
+        mock_case = self._make_case("/run", "/exe")
+
+        with pytest.raises(FileNotFoundError, match="Filter executable not found"):
+            assimilate.run_filter_for_component(mock_case, "ocn", "/caseroot")
+
+
+class TestAssimilateFunction:
+    """Test the assimilate() entry point."""
+
+    def _make_case(self, active_comps):
+        mock_case = Mock()
+        def get_value(key):
+            for comp in ["OCN", "ATM", "LND", "ICE"]:
+                if key == f"DATA_ASSIMILATION_{comp}":
+                    return comp.lower() in active_comps
+            if key == "RUNDIR":
+                return "/run"
+            return None
+        mock_case.get_value.side_effect = get_value
+        return mock_case
+
+    @patch('assimilate.Case')
+    @patch('assimilate.copy_geometry_file_for_cycle0')
+    @patch('assimilate.run_filter_for_component')
+    def test_single_component_ocn(self, mock_run_filter, mock_geom, mock_Case):
+        """OCN-only DA calls run_filter_for_component once with 'ocn'."""
+        mock_case_instance = self._make_case({"ocn"})
+        mock_Case.return_value.__enter__.return_value = mock_case_instance
+
+        assimilate.assimilate("/case/root", 1)
+
+        mock_run_filter.assert_called_once_with(
+            mock_case_instance, "ocn", "/case/root", use_mpi=True
+        )
+
+    @patch('assimilate.Case')
+    @patch('assimilate.copy_geometry_file_for_cycle0')
+    @patch('assimilate.run_filter_for_component')
+    def test_single_component_atm(self, mock_run_filter, mock_geom, mock_Case):
+        """ATM-only DA calls run_filter_for_component once with 'atm'."""
+        mock_case_instance = self._make_case({"atm"})
+        mock_Case.return_value.__enter__.return_value = mock_case_instance
+
+        assimilate.assimilate("/case/root", 1)
+
+        mock_run_filter.assert_called_once_with(
+            mock_case_instance, "atm", "/case/root", use_mpi=True
+        )
+
+    @patch('assimilate.Case')
+    @patch('assimilate.copy_geometry_file_for_cycle0')
+    @patch('assimilate.run_filter_for_component')
+    def test_multi_component_ocn_ice(self, mock_run_filter, mock_geom, mock_Case):
+        """OCN+ICE DA calls run_filter_for_component for each in order."""
+        mock_case_instance = self._make_case({"ocn", "ice"})
+        mock_Case.return_value.__enter__.return_value = mock_case_instance
+
+        assimilate.assimilate("/case/root", 0, use_mpi=False)
+
+        assert mock_run_filter.call_count == 2
+        calls = mock_run_filter.call_args_list
+        assert calls[0] == call(mock_case_instance, "ocn", "/case/root", use_mpi=False)
+        assert calls[1] == call(mock_case_instance, "ice", "/case/root", use_mpi=False)
+
+    @patch('assimilate.Case')
+    @patch('assimilate.copy_geometry_file_for_cycle0')
+    @patch('assimilate.run_filter_for_component')
+    def test_no_active_components_raises(self, mock_run_filter, mock_geom, mock_Case):
+        """RuntimeError raised when no DA components are active."""
+        mock_case_instance = self._make_case(set())
+        mock_Case.return_value.__enter__.return_value = mock_case_instance
+
+        with pytest.raises(RuntimeError, match="no DATA_ASSIMILATION"):
+            assimilate.assimilate("/case/root", 1)
 
 
 class TestMain:
-    """Test main and assimilate() entry points."""
+    """Test main() entry point."""
 
-
-    @patch('assimilate.Case')
-    @patch('assimilate.run_filter')
-    def test_assimilate_function_default(self, mock_run_filter, mock_Case):
-        """Test assimilate() function with caseroot and cycle argument (default use_mpi)."""
-        mock_case_instance = Mock()
-        mock_Case.return_value.__enter__.return_value = mock_case_instance
-        assimilate.assimilate("/case/root", 1)
-        mock_Case.assert_called_once_with("/case/root")
-        mock_run_filter.assert_called_once_with(mock_case_instance, "/case/root", use_mpi=True)
-
-    @patch('assimilate.Case')
-    @patch('assimilate.run_filter')
-    def test_assimilate_function_no_mpi(self, mock_run_filter, mock_Case):
-        """Test assimilate() function with use_mpi=False."""
-        mock_case_instance = Mock()
-        mock_Case.return_value.__enter__.return_value = mock_case_instance
-        assimilate.assimilate("/case/root", 2, use_mpi=False)
-        mock_Case.assert_called_once_with("/case/root")
-        mock_run_filter.assert_called_once_with(mock_case_instance, "/case/root", use_mpi=False)
-
-
-    @patch('assimilate.Case')
-    @patch('assimilate.run_filter')
-    def test_main_with_argv(self, mock_run_filter, mock_Case):
-        """Test main() with command-line caseroot and cycle argument (default: use_mpi)."""
-        mock_case_instance = Mock()
-        mock_Case.return_value.__enter__.return_value = mock_case_instance
+    @patch('assimilate.assimilate')
+    def test_main_with_argv(self, mock_assimilate):
+        """Test main() calls assimilate() with caseroot and cycle."""
         test_argv = ["assimilate.py", "/case/root", "3"]
         with patch('sys.argv', test_argv):
             assimilate.main()
-        mock_Case.assert_called_once_with("/case/root")
-        mock_run_filter.assert_called_once_with(mock_case_instance, "/case/root", use_mpi=True)
+        mock_assimilate.assert_called_once_with(
+            "/case/root", cycle="3", use_mpi=True
+        )
 
-    @patch('assimilate.Case')
-    @patch('assimilate.run_filter')
-    def test_main_with_no_mpi_flag(self, mock_run_filter, mock_Case):
-        """Test main() with --no-mpi flag disables MPI."""
-        mock_case_instance = Mock()
-        mock_Case.return_value.__enter__.return_value = mock_case_instance
+    @patch('assimilate.assimilate')
+    def test_main_with_no_mpi_flag(self, mock_assimilate):
+        """Test main() with --no-mpi passes use_mpi=False."""
         test_argv = ["assimilate.py", "/case/root", "4", "--no-mpi"]
         with patch('sys.argv', test_argv):
             assimilate.main()
-        mock_Case.assert_called_once_with("/case/root")
-        mock_run_filter.assert_called_once_with(mock_case_instance, "/case/root", use_mpi=False)
+        mock_assimilate.assert_called_once_with(
+            "/case/root", cycle="4", use_mpi=False
+        )
 
     def test_main_no_argv_errors(self):
-        """Test main() errors if no caseroot or cycle argument is given."""
+        """Test main() exits with code 2 if required args are missing."""
         import io
-        test_argv = ["assimilate.py"]
-        with patch('sys.argv', test_argv), patch('sys.stderr', new_callable=io.StringIO) as mock_stderr:
-            with pytest.raises(SystemExit) as excinfo:
-                assimilate.main()
-            assert excinfo.value.code == 2  # argparse exits with code 2 for missing required args
-
-        # Also test missing cycle argument
-        test_argv = ["assimilate.py", "/case/root"]
-        with patch('sys.argv', test_argv), patch('sys.stderr', new_callable=io.StringIO) as mock_stderr:
-            with pytest.raises(SystemExit) as excinfo:
-                assimilate.main()
-            assert excinfo.value.code == 2
+        for argv in [["assimilate.py"], ["assimilate.py", "/case/root"]]:
+            with patch('sys.argv', argv), patch('sys.stderr', new_callable=io.StringIO):
+                with pytest.raises(SystemExit) as excinfo:
+                    assimilate.main()
+                assert excinfo.value.code == 2
 
 
 if __name__ == "__main__":

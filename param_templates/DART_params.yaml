@@ -2,6 +2,12 @@
 BASEOBSDIR:
   $DATA_ASSIMILATION_OCN == True:
     "'${DIN_LOC_ROOT}/esp/dart/ocn_obs_seq/WOD13'"
+  $DATA_ASSIMILATION_ATM == True:
+    "'${DIN_LOC_ROOT}/esp/dart/atm_obs_seq'"
+  $DATA_ASSIMILATION_LND == True:
+    "'${DIN_LOC_ROOT}/esp/dart/lnd_obs_seq'"
+  $DATA_ASSIMILATION_ICE == True:
+    "'${DIN_LOC_ROOT}/esp/dart/ice_obs_seq'"
 MOVE: "'mv -v'"
 COPY: "'cp -v --preserve=timestamps'"
 LINK: "'ln -vfs'"

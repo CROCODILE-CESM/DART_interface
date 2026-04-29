@@ -16,3 +16,12 @@ dart.input_data_list:
               [f"${DIN_LOC_ROOT}/esp/dart/ocn_obs_seq/WOD13/{year}10/obs_seq.0Z.{year}10{day:02d}" for year in range(2005,2017) for day in range(1,32)] + 
               [f"${DIN_LOC_ROOT}/esp/dart/ocn_obs_seq/WOD13/{year}11/obs_seq.0Z.{year}11{day:02d}" for year in range(2005,2017) for day in range(1,31)] + 
               [f"${DIN_LOC_ROOT}/esp/dart/ocn_obs_seq/WOD13/{year}12/obs_seq.0Z.{year}12{day:02d}" for year in range(2005,2017) for day in range(1,32)]
+    atm_obs_seq:
+        $DATA_ASSIMILATION_ATM == True :
+            = [f"${DIN_LOC_ROOT}/esp/dart/atm_obs_seq/{year}{month:02d}/obs_seq.0Z.{year}{month:02d}{day:02d}" for year in range(2005,2017) for month in range(1,13) for day in range(1,32)]
+    lnd_obs_seq:
+        $DATA_ASSIMILATION_LND == True :
+            = [f"${DIN_LOC_ROOT}/esp/dart/lnd_obs_seq/{year}{month:02d}/obs_seq.0Z.{year}{month:02d}{day:02d}" for year in range(2005,2017) for month in range(1,13) for day in range(1,32)]
+    ice_obs_seq:
+        $DATA_ASSIMILATION_ICE == True :
+            = [f"${DIN_LOC_ROOT}/esp/dart/ice_obs_seq/{year}{month:02d}/obs_seq.0Z.{year}{month:02d}{day:02d}" for year in range(2005,2017) for month in range(1,13) for day in range(1,32)]

@@ -9,8 +9,12 @@ main() {
 export DART=$(git rev-parse --show-toplevel)
 source "$DART"/build_templates/buildfunctions.sh
 
-MODEL=MOM6
+# DART_MODEL must be set in the environment by the caller (buildlib).
+# Supported values: MOM6, cam-se, clm, cice
+MODEL=${DART_MODEL:?'DART_MODEL environment variable must be set by the caller'}
 LOCATION=threed_sphere
+# DART_EXTRA is optional; cam-se needs it to point at cam-common-code.
+EXTRA=${DART_EXTRA:-}
 
 
 programs=(

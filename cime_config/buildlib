@@ -18,112 +18,198 @@ from CIME.case import Case
 from CIME.utils import run_sub_or_cmd, run_cmd, expect
 from CIME.build import get_standard_makefile_args
 
+# Import component registry from the same directory as this file
+_buildlib_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _buildlib_dir)
+from dart_cesm_components import DART_COMPONENTS, get_active_da_components
+
 logger = logging.getLogger(__name__)
+
+
+def _build_merged_preprocess_nml(active_comps, build_templates_dir, core_dartroot, targetdir):
+    """
+    Build a merged preprocess_input.nml that covers all active DA components.
+    obs_type_files and quantity_files are collected from the registry for every
+    active component and de-duplicated while preserving order.
+    """
+    obs_type_files = []
+    quantity_files = []
+    seen_obs = set()
+    seen_qty = set()
+    for comp in active_comps:
+        for f in DART_COMPONENTS[comp]["obs_type_files"]:
+            if f not in seen_obs:
+                obs_type_files.append(f)
+                seen_obs.add(f)
+        for f in DART_COMPONENTS[comp]["quantity_files"]:
+            if f not in seen_qty:
+                quantity_files.append(f)
+                seen_qty.add(f)
+
+    obs_fwd_dir = os.path.join(core_dartroot, "observations", "forward_operators")
+    qty_dir = os.path.join(core_dartroot, "assimilation_code", "modules", "observations")
+
+    def fmt_list(paths, indent="                             "):
+        quoted = [f"'{p}'" for p in paths]
+        return (",\n" + indent).join(quoted)
+
+    obs_type_str = fmt_list([os.path.join(obs_fwd_dir, f) for f in obs_type_files])
+    qty_str = fmt_list([os.path.join(qty_dir, f) for f in quantity_files])
+
+    nml = f"""&preprocess_nml
+    input_obs_qty_mod_file =  '{core_dartroot}/assimilation_code/modules/observations/DEFAULT_obs_kind_mod.F90'
+    output_obs_qty_mod_file = '{core_dartroot}/assimilation_code/modules/observations/obs_kind_mod.f90'
+    input_obs_def_mod_file =  '{core_dartroot}/observations/forward_operators/DEFAULT_obs_def_mod.F90'
+    output_obs_def_mod_file = '{core_dartroot}/observations/forward_operators/obs_def_mod.f90'
+    obs_type_files =          {obs_type_str}
+    quantity_files =          {qty_str}
+/
+
+&utilities_nml
+    logfilename = 'preprocess.log'
+    write_nml = 'none'
+/
+"""
+    nml_path = os.path.join(targetdir, "input.nml")
+    with open(nml_path, "w") as f:
+        f.write(nml)
+    logger.info(f"Wrote merged preprocess input.nml to {nml_path}")
+
+
+def _build_dart_for_component(comp, core_dartroot, exeroot, build_templates_dir,
+                               compiler, targetdir):
+    """
+    Build DART filter (and supporting executables) for one component.
+    The resulting 'filter' binary is copied to filter_{comp} in targetdir.
+    """
+    dart_info = DART_COMPONENTS[comp]
+    dart_model = dart_info["dart_model"]
+
+    logger.info(f"Building DART executables for component '{comp}' (model: {dart_model})")
+
+    # Build in a per-component subdirectory to avoid object-file conflicts
+    comp_blddir = os.path.join(targetdir, f"build_{comp}")
+    os.makedirs(comp_blddir, exist_ok=True)
+
+    # Stage quickbuild.sh (with DART path fixed up) into the component build dir
+    orig_quickbuild_path = os.path.join(build_templates_dir, "quickbuild.sh")
+    new_quickbuild_path = os.path.join(comp_blddir, "quickbuild.sh")
+    with open(new_quickbuild_path, "w") as f_out:
+        for line in open(orig_quickbuild_path, "r"):
+            if line.startswith("export DART="):
+                f_out.write(f"export DART='{core_dartroot}'\n")
+            else:
+                f_out.write(line)
+    os.chmod(new_quickbuild_path, 0o755)
+
+    # Stage the merged preprocess input.nml (already written to targetdir/input.nml)
+    # Copy it into the component build directory too
+    shutil.copy(os.path.join(targetdir, "input.nml"),
+                os.path.join(comp_blddir, "input.nml"))
+
+    # Run quickbuild.sh with DART_MODEL and DART_EXTRA set in the environment
+    env = os.environ.copy()
+    env["DART_MODEL"] = dart_model
+    # cam-se needs the EXTRA path for cam-common-code
+    if dart_model == "cam-se":
+        env["DART_EXTRA"] = os.path.join(core_dartroot, "models", "cam-common-code")
+    else:
+        env.pop("DART_EXTRA", None)
+
+    os.chdir(comp_blddir)
+    cmd = "sh ./quickbuild.sh"
+    rc, out, err = run_cmd(cmd, env=env)
+    logger.info("%s: \n\n output:\n %s \n\n err:\n\n%s\n" % (cmd, out, err))
+    expect(rc == 0, f"quickbuild.sh failed for component '{comp}' with rc={rc}")
+
+    # Copy executables to targetdir, suffixed by component
+    for exe in ["filter", "perfect_model_obs", "fill_inflation_restart"]:
+        src = os.path.join(comp_blddir, exe)
+        if os.path.exists(src):
+            dst = os.path.join(targetdir, f"{exe}_{comp}")
+            shutil.copy2(src, dst)
+            logger.info(f"Installed {dst}")
+
+    # 'filter' without suffix is needed by assimilate.py dispatch; keep a copy
+    # of the last-built filter for backward compatibility (overwritten per component,
+    # assimilate.py uses filter_{comp} names).
+    filter_src = os.path.join(comp_blddir, "filter")
+    if os.path.exists(filter_src):
+        shutil.copy2(filter_src, os.path.join(targetdir, "filter"))
+
 
 def CESM_DART_config(case):
     '''
-    Build the DART executables using the conventional DART scripts (quickbuild.sh)
+    Build the DART executables using the conventional DART scripts (quickbuild.sh).
+    One filter_{comp} binary is built per active DA component.
     '''
 
     logger.info("Building DART executables using quickbuild.sh")
 
     dartroot = case.get_value("COMP_ROOT_DIR_ESP")
-    core_dartroot = os.path.join(dartroot,"DART")
-    comp_ocn = case.get_value("COMP_OCN")
+    core_dartroot = os.path.join(dartroot, "DART")
     exeroot = case.get_value("EXEROOT")
     caseroot = case.get_value("CASEROOT")
-    # get this directory to get input.nml and mkmf.template
-    buildlib_dir = os.path.dirname(os.path.abspath(__file__))
+    build_templates_dir = os.path.join(_buildlib_dir, os.pardir, "cesm_build_templates")
 
-    # Number of model run - data assimilation steps to complete
-    # HK todo does DATA_ASSIMILATION_CYCLES need to be > 0
-    # where is this getting set?
     data_assimilation_cycles = case.get_value("DATA_ASSIMILATION_CYCLES")
-    expect(data_assimilation_cycles>0, "DATA_ASSIMILATION_CYCLES must be greater than 0 when DART is active.")
+    expect(data_assimilation_cycles > 0,
+           "DATA_ASSIMILATION_CYCLES must be greater than 0 when DART is active.")
 
-    # DATA_ASSIMILATION flag for each component
-    data_assimilation = {cc: case.get_value(f"DATA_ASSIMILATION_{cc.upper()}") \
-                            for cc in ['atm', 'cpl', 'ocn', 'wav', 'glc', 'ice', 'rof', 'lnd'] }
+    active_comps = get_active_da_components(case)
+    expect(len(active_comps) > 0,
+           "No DATA_ASSIMILATION_* flags are True. At least one component must have DA enabled.")
 
-    # number of components for which DA is on
-    n_da_comp = sum(data_assimilation.values())
-
-    # select the appropriate mkmf.template:
+    # Select the appropriate mkmf.template
     compiler = case.get_value("COMPILER")
-    build_templates_dir = os.path.join(buildlib_dir,os.pardir,"cesm_build_templates")
     mkmf_template = os.path.join(core_dartroot, "build_templates", "mkmf.template")
-    
     if compiler == "intel":
         shutil.copy(os.path.join(build_templates_dir, "mkmf.template.intel.linux"), mkmf_template)
     elif compiler == "gnu":
         shutil.copy(os.path.join(build_templates_dir, "mkmf.template.gfortran"), mkmf_template)
     else:
-        expect(False, "Unsupported compset for DATA_ASSIMILATION.")
+        expect(False, f"Unsupported compiler '{compiler}' for DATA_ASSIMILATION.")
 
-    dart_executables = ['filter', 'perfect_model_obs', 'fill_inflation_restart']
+    targetdir = os.path.join(exeroot, "esp")
+    os.makedirs(targetdir, exist_ok=True)
 
-    # Make sure the DART executables exist or build them if we can't find them.
-    targetdir = os.path.join(exeroot,"esp")
+    # Determine which per-component filter binaries are missing
+    missing_comps = [
+        comp for comp in active_comps
+        if not os.path.exists(os.path.join(targetdir, f"filter_{comp}"))
+    ]
 
-    if not all([os.path.exists(os.path.join(targetdir,executable)) for executable in dart_executables]):
-        logger.warning("DART executable(s) missing in build directory.\n"
-                       "Trying to (re)build all executables now")
-        
-        # create input.nml for preprocess 
-        preprocess_input_nml_path = os.path.join(build_templates_dir, "preprocess_input.nml") 
-        bld_input_nml_path = os.path.join(targetdir, "input.nml") 
-        logger.info(f"copying {preprocess_input_nml_path} to {bld_input_nml_path}")
-        shutil.copy(preprocess_input_nml_path, bld_input_nml_path)
-        # Replace DART_ROOT_DIR in input.nml with dartroot
-        with open(bld_input_nml_path, 'r') as f:
-            content = f.read()
-        content = content.replace('{DARTCORE_DIR}', core_dartroot)
-        with open(bld_input_nml_path, 'w') as f:
-            f.write(content)
+    if not missing_comps:
+        logger.info("All DART filter executables exist")
+        return
 
+    logger.warning(
+        f"DART filter executable(s) missing for component(s): {missing_comps}. "
+        "Trying to (re)build now."
+    )
 
-        # Create quickbuild.sh for this case
-        # While doing so, change the relative DART path with the correct absolute DART path
-        orig_quickbuild_path = os.path.join(build_templates_dir,"quickbuild.sh")
-        new_quickbuild_path = os.path.join(targetdir,"quickbuild.sh")
-        with open(new_quickbuild_path,'w') as f:
-            for line in open(orig_quickbuild_path,'r'):
-                if not line.startswith('export DART='):
-                    f.write(line)
-                else:
-                    f.write(f"export DART='{core_dartroot}'\n")
+    # Patch mkmf to use parallel make (done once)
+    mkmf_path = os.path.join(core_dartroot, "build_templates", "mkmf")
+    if os.path.exists(mkmf_path):
+        with open(mkmf_path, "r") as f:
+            mkmf_content = f.read()
+        old_line = "exec 'make', '-f', $opt_m if $opt_x;"
+        new_line = "exec 'make', '-j', '8', '-f', $opt_m if $opt_x;"
+        mkmf_content = mkmf_content.replace(old_line, new_line)
+        with open(mkmf_path, "w") as f:
+            f.write(mkmf_content)
+        logger.info("Modified mkmf to use -j 8")
 
+    # Write a merged preprocess input.nml covering all active components
+    _build_merged_preprocess_nml(active_comps, build_templates_dir, core_dartroot, targetdir)
 
-        # Modify mkmf to use parallel make
-        mkmf_path = os.path.join(core_dartroot, "build_templates", "mkmf")
-        if os.path.exists(mkmf_path):
-            # Read the original mkmf file
-            with open(mkmf_path, 'r') as f:
-                mkmf_content = f.read()
-            
-            # Replace the exec make to include -j 8
-            old_line = "exec 'make', '-f', $opt_m if $opt_x;"
-            new_line = "exec 'make', '-j', '8', '-f', $opt_m if $opt_x;"
-            
-            mkmf_content = mkmf_content.replace(old_line, new_line)
-            
-            # Write back the modified content
-            with open(mkmf_path, 'w') as f:
-                f.write(mkmf_content)
-            
-            logger.info("Modified mkmf to use -j 8")
-
-        # Now, run the quickbuld.sh command
-        os.chdir(targetdir)
-        cmd = "sh ./quickbuild.sh"
-        rc, out, err = run_cmd(cmd)
-        logger.info("%s: \n\n output:\n %s \n\n err:\n\n%s\n"%(cmd,out,err))
-        expect(rc == 0, "Command %s failed with rc=%s" % (cmd, rc))
+    # Build each missing component
+    for comp in missing_comps:
+        _build_dart_for_component(
+            comp, core_dartroot, exeroot, build_templates_dir, compiler, targetdir
+        )
 
     # Note: the remaining CESM_DART_config tasks are done in buildnml.
-
-    else:
-        logger.info("DART executables exist")
 
 def buildlib(caseroot, libroot, bldroot):
     '''The top-level buildlib function.'''
