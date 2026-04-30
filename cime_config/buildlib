@@ -26,25 +26,14 @@ from dart_cesm_components import DART_COMPONENTS, get_active_da_components
 logger = logging.getLogger(__name__)
 
 
-def _build_merged_preprocess_nml(active_comps, build_templates_dir, core_dartroot, targetdir):
+def _build_preprocess_nml(comp, core_dartroot, targetdir):
     """
-    Build a merged preprocess_input.nml that covers all active DA components.
-    obs_type_files and quantity_files are collected from the registry for every
-    active component and de-duplicated while preserving order.
+    Write a preprocess input.nml for a single DA component into targetdir.
+    Only that component's obs_type_files and quantity_files are included.
     """
-    obs_type_files = []
-    quantity_files = []
-    seen_obs = set()
-    seen_qty = set()
-    for comp in active_comps:
-        for f in DART_COMPONENTS[comp]["obs_type_files"]:
-            if f not in seen_obs:
-                obs_type_files.append(f)
-                seen_obs.add(f)
-        for f in DART_COMPONENTS[comp]["quantity_files"]:
-            if f not in seen_qty:
-                quantity_files.append(f)
-                seen_qty.add(f)
+    dart_info = DART_COMPONENTS[comp]
+    obs_type_files = dart_info["obs_type_files"]
+    quantity_files = dart_info["quantity_files"]
 
     obs_fwd_dir = os.path.join(core_dartroot, "observations", "forward_operators")
     qty_dir = os.path.join(core_dartroot, "assimilation_code", "modules", "observations")
@@ -73,7 +62,7 @@ def _build_merged_preprocess_nml(active_comps, build_templates_dir, core_dartroo
     nml_path = os.path.join(targetdir, "input.nml")
     with open(nml_path, "w") as f:
         f.write(nml)
-    logger.info(f"Wrote merged preprocess input.nml to {nml_path}")
+    logger.info(f"Wrote preprocess input.nml for '{comp}' to {nml_path}")
 
 
 def _build_dart_for_component(comp, core_dartroot, exeroot, build_templates_dir,
@@ -113,10 +102,8 @@ def _build_dart_for_component(comp, core_dartroot, exeroot, build_templates_dir,
         f_out.write(content)
     os.chmod(new_quickbuild_path, 0o755)
 
-    # Stage the merged preprocess input.nml (already written to targetdir/input.nml)
-    # Copy it into the component build directory too
-    shutil.copy(os.path.join(targetdir, "input.nml"),
-                os.path.join(comp_blddir, "input.nml"))
+    # Write a per-component preprocess input.nml directly into the build directory
+    _build_preprocess_nml(comp, core_dartroot, comp_blddir)
 
     # Run quickbuild.sh with DART_MODEL and DART_EXTRA set in the environment
     env = os.environ.copy()
@@ -149,6 +136,7 @@ def _build_dart_for_component(comp, core_dartroot, exeroot, build_templates_dir,
             shutil.copy2(src, dst)
             logger.info(f"Installed {dst}")
 
+    # @todo HK do we need backward compatibility?
     # 'filter' without suffix is needed by assimilate.py dispatch; keep a copy
     # of the last-built filter for backward compatibility (overwritten per component,
     # assimilate.py uses filter_{comp} names).
@@ -218,9 +206,6 @@ def CESM_DART_config(case):
         with open(mkmf_path, "w") as f:
             f.write(mkmf_content)
         logger.info("Modified mkmf to use -j 8")
-
-    # Write a merged preprocess input.nml covering all active components
-    _build_merged_preprocess_nml(active_comps, build_templates_dir, core_dartroot, targetdir)
 
     # Build each missing component
     for comp in missing_comps:
