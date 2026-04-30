@@ -595,6 +595,7 @@ def assimilate(caseroot, cycle, rundir=None, use_mpi=True):
             rundir = case.get_value("RUNDIR")
 
         active_comps = get_active_da_components(case)
+        # HK @todo: user may want to run some cycles with no DA, e.g. spin up?
         if not active_comps:
             raise RuntimeError(
                 "assimilate called but no DATA_ASSIMILATION_* flags are True."

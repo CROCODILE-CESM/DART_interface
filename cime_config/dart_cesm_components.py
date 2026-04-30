@@ -20,6 +20,7 @@ DART_COMPONENTS = {
         # MOM6 and DART both use a file called input.nml; it must be backed up
         # before filter runs and restored afterwards.
         "input_nml_conflict": True,
+        "model_serial_programs": [],
     },
     "atm": {
         "dart_model": "cam-se",
@@ -38,6 +39,7 @@ DART_COMPONENTS = {
             "chemistry_quantities_mod.f90",
         ],
         "input_nml_conflict": False,
+        "model_serial_programs": [],
     },
     "lnd": {
         "dart_model": "clm",
@@ -55,6 +57,10 @@ DART_COMPONENTS = {
             "atmosphere_quantities_mod.f90",
         ],
         "input_nml_conflict": False,
+        "model_serial_programs": [
+            "clm_to_dart",
+            "dart_to_clm",
+        ],
     },
     "ice": {
         "dart_model": "cice",
@@ -69,6 +75,10 @@ DART_COMPONENTS = {
             "ocean_quantities_mod.f90",
         ],
         "input_nml_conflict": False,
+        "model_serial_programs": [
+            "cice_to_dart",
+            "dart_to_cice",
+        ],
     },
 }
 

@@ -91,15 +91,26 @@ def _build_dart_for_component(comp, core_dartroot, exeroot, build_templates_dir,
     comp_blddir = os.path.join(targetdir, f"build_{comp}")
     os.makedirs(comp_blddir, exist_ok=True)
 
-    # Stage quickbuild.sh (with DART path fixed up) into the component build dir
+    # Stage quickbuild.sh (with DART path and model_serial_programs fixed up)
+    # into the component build dir.
     orig_quickbuild_path = os.path.join(build_templates_dir, "quickbuild.sh")
     new_quickbuild_path = os.path.join(comp_blddir, "quickbuild.sh")
+    with open(orig_quickbuild_path, "r") as f_in:
+        content = f_in.read()
+    # Patch the DART root path
+    import re as _re
+    content = _re.sub(r'^export DART=.*$', f"export DART='{core_dartroot}'",
+                      content, flags=_re.MULTILINE)
+    # Inject model-specific serial programs (e.g. cice_to_dart, dart_to_cice)
+    model_serial = dart_info.get("model_serial_programs", [])
+    if model_serial:
+        programs_str = "".join(f"{p}\n" for p in model_serial)
+        content = content.replace(
+            "model_serial_programs=(\n)",
+            f"model_serial_programs=(\n{programs_str})"
+        )
     with open(new_quickbuild_path, "w") as f_out:
-        for line in open(orig_quickbuild_path, "r"):
-            if line.startswith("export DART="):
-                f_out.write(f"export DART='{core_dartroot}'\n")
-            else:
-                f_out.write(line)
+        f_out.write(content)
     os.chmod(new_quickbuild_path, 0o755)
 
     # Stage the merged preprocess input.nml (already written to targetdir/input.nml)
@@ -127,6 +138,14 @@ def _build_dart_for_component(comp, core_dartroot, exeroot, build_templates_dir,
         src = os.path.join(comp_blddir, exe)
         if os.path.exists(src):
             dst = os.path.join(targetdir, f"{exe}_{comp}")
+            shutil.copy2(src, dst)
+            logger.info(f"Installed {dst}")
+
+    # Copy model-specific serial programs (already uniquely named, e.g. cice_to_dart)
+    for exe in dart_info.get("model_serial_programs", []):
+        src = os.path.join(comp_blddir, exe)
+        if os.path.exists(src):
+            dst = os.path.join(targetdir, exe)
             shutil.copy2(src, dst)
             logger.info(f"Installed {dst}")
 
