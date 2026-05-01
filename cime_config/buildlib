@@ -31,6 +31,11 @@ def _stage_clean_script(active_comps, targetdir):
     Write a clean_build script to targetdir ($EXEROOT/esp/) so that CIME's
     cleanesp Makefile target can call 'sh ./clean_build'.
     The script removes all DART executables and per-component build directories.
+
+    preprocess is built once in $DART/assimilation_code/programs/preprocess/ and
+    symlinked into each build_{comp}/ directory.  We call 'quickbuild.sh clean'
+    from the first available build directory to remove the actual binary from the
+    DART source tree.  The symlinks are removed along with build_*/.
     """
     # Collect model-specific serial program names across all active components
     model_serial = []
@@ -39,10 +44,20 @@ def _stage_clean_script(active_comps, targetdir):
 
     serial_line = f"rm -f {' '.join(model_serial)}" if model_serial else ""
 
+    # Pick the first active component to clean preprocess from the DART source tree.
+    # Any component's quickbuild.sh will do since they all share the same $DART.
+    first_comp = active_comps[0]
+    first_dart_model = DART_COMPONENTS[first_comp]["dart_model"]
+
     script = f"""#!/usr/bin/env bash
 # DART clean script for CESM. Called by CIME's cleanesp Makefile target.
 
-# Remove per-component build directories
+# Remove the preprocess binary from the DART source tree (built once, shared).
+# The symlinks in each build_*/ are removed below with rm -rf build_*/.
+[ -d build_{first_comp} ] && \\
+    (cd build_{first_comp} && DART_MODEL={first_dart_model} sh ./quickbuild.sh clean)
+
+# Remove per-component build directories (and preprocess symlinks within them)
 rm -rf build_*/
 # Remove DART executables installed for each component
 rm -f filter_* perfect_model_obs_* fill_inflation_restart_*
