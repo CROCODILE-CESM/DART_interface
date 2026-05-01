@@ -2,7 +2,8 @@
 
 **CESM-DART interface for MOM6 in the CROCODILE project**
 
-This repository provides the infrastructure to integrate the Data Assimilation Research Testbed (DART) with the Community Earth System Model (CESM), specifically for the MOM6 ocean component. 
+This repository provides the infrastructure to integrate the Data Assimilation Research Testbed (DART) with the Community Earth System Model (CESM).
+It supports data assimilation for multiple CESM components: ocean (MOM6), atmosphere (CAM-SE), land (CLM), and sea-ice (CICE), individually or in combination.
 
 
 ## Repository Overview
@@ -49,14 +50,20 @@ CIME script that builds the DART executables and creates the DART library during
 
 **Key responsibilities:**
 - **Compiler configuration** - Selects appropriate `mkmf.template` based on compiler (Intel or GNU)
-- **DART executable building** - Builds three DART programs:
-  - `filter` - Main assimilation executable
-  - `perfect_model_obs` - Creates synthetic observations from model state
-  - `fill_inflation_restart` - Utility to create restart files for inflation parameters. 
-- **Quickbuild automation** - Creates and executes a customized `quickbuild.sh` script:
-  - Substitutes absolute paths for DART source directory
-  - Creates `preprocess_input.nml` for DART preprocessing step
+- **Multi-component support** - Builds DART executables independently for each active DA component (ocean, atmosphere, land, sea-ice), each in its own `build_{comp}/` subdirectory to avoid object-file conflicts
+- **Per-component DART executables** - For each active component builds:
+  - `filter_{comp}` - Main assimilation executable
+  - `perfect_model_obs_{comp}` - Creates synthetic observations from model state
+  - `fill_inflation_restart_{comp}` - Utility to create restart files for inflation parameters
+- **Model-specific serial programs** - Some models require additional converter programs that run before and after `filter`. These are built and installed to `$EXEROOT/esp/`:
+  - CLM (land): `clm_to_dart`, `dart_to_clm`
+  - CICE (sea-ice): `cice_to_dart`, `dart_to_cice`
+- **Preprocess** - Writes a per-component `input.nml` containing only that component's obs types and quantities, then runs DART's `preprocess` program to generate the obs kind/def modules before compilation
+- **Quickbuild automation** - Stages and executes a customised `quickbuild.sh` for each component:
+  - Substitutes absolute path for the DART source directory
+  - Injects model-specific serial programs into `model_serial_programs`
   - Modifies `mkmf` to use parallel make (`-j 8`) for faster compilation
+- **Clean support** - Stages a `clean_build` script at `$EXEROOT/esp/` so that CIME's `cleanesp` Makefile target removes all DART executables and build directories
 - **Library creation** - Builds a minimal `libesp.a` library containing the NUOPC driver stub
 - **Validation** - Checks that `DATA_ASSIMILATION_CYCLES` is greater than 0
 

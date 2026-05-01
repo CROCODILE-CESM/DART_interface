@@ -39,7 +39,9 @@ DART_COMPONENTS = {
             "chemistry_quantities_mod.f90",
         ],
         "input_nml_conflict": False,
-        "model_serial_programs": [],
+        "model_serial_programs": [
+            "column_rand",
+        ],
     },
     "lnd": {
         "dart_model": "clm",
