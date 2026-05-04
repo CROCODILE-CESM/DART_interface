@@ -20,6 +20,10 @@ DART_COMPONENTS = {
         # MOM6 and DART both use a file called input.nml; it must be backed up
         # before filter runs and restored afterwards.
         "input_nml_conflict": True,
+        # Full input_nml JSON template for this component, relative to
+        # param_templates/json/.  Generated from the model's work/input.nml
+        # using the same toolchain as the MOM6 template.
+        "input_nml_model": "input_nml.json",
         "model_serial_programs": [],
         "pre_filter_programs": [],
         "post_filter_programs": [],
@@ -41,6 +45,7 @@ DART_COMPONENTS = {
             "chemistry_quantities_mod.f90",
         ],
         "input_nml_conflict": False,
+        "input_nml_model": "input_nml_atm.json",
         "model_serial_programs": [
             "column_rand",
         ],
@@ -63,6 +68,7 @@ DART_COMPONENTS = {
             "atmosphere_quantities_mod.f90",
         ],
         "input_nml_conflict": False,
+        "input_nml_model": "input_nml_lnd.json",
         "model_serial_programs": [
             "clm_to_dart",
             "dart_to_clm",
@@ -87,6 +93,7 @@ DART_COMPONENTS = {
             "ocean_quantities_mod.f90",
         ],
         "input_nml_conflict": False,
+        "input_nml_model": "input_nml_ice.json",
         "model_serial_programs": [
             "cice_to_dart",
             "dart_to_cice",

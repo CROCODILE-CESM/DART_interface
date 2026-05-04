@@ -86,44 +86,57 @@ def buildnml(case, caseroot, compname):
         #    )
 
     def gen_DART_input_nml():
-        input_nml_template = os.path.join(
-            dartroot, "param_templates", "json", "input_nml.json"
-        )
-        input_nml = DART_input_nml.from_json(input_nml_template)
-        # ensemble size is the common NINST across all active DA components
-        input_nml.data["filter_nml"]["ens_size"]["values"] = ens_size
-
-        # set ensemble_manager namelist based on number of tasks per node
         tasks_per_node = case.get_value("MAX_TASKS_PER_NODE")
 
-        # Read user_nl_dart file and parse namelist
+        # Read user_nl_dart once; it applies to all components
         user_nl_file = os.path.join(caseroot, "user_nl_dart")
+        user_nml = {}
         if os.path.exists(user_nl_file):
             user_nml = parse_fortran_namelist(user_nl_file)
-            # Update input_nml with values from user_nl_dart
+
+        first_input_nml = None
+        for comp in active_comps:
+            # Each component has its own full input_nml JSON template.
+            model_json = DART_COMPONENTS[comp]["input_nml_model"]
+            template_path = os.path.join(
+                dartroot, "param_templates", "json", model_json
+            )
+            input_nml = DART_input_nml.from_json(template_path)
+
+            # Ensemble size is the same for all active DA components (enforced above)
+            input_nml.data["filter_nml"]["ens_size"]["values"] = ens_size
+
+            # Apply user_nl_dart overrides
             for namelist_name, namelist_vars in user_nml.items():
                 if namelist_name in input_nml.data:
                     for var_name, var_value in namelist_vars.items():
                         if var_name in input_nml.data[namelist_name]:
-                            # Update the value in input_nml
                             input_nml.data[namelist_name][var_name]["values"] = var_value
                         else:
-                            logger.warning(f"Variable {var_name} in {namelist_name} not found in template")
+                            logger.warning(
+                                f"Variable {var_name} in {namelist_name} not found in template"
+                            )
                 else:
                     logger.warning(f"Namelist {namelist_name} not found in template")
-    
-        # Set input_state_file_list, output_state_file_list
-        # HK @todo filter_input|output_list.txt is hardcoded in assimilate.py
-        input_nml.data["filter_nml"]["input_state_file_list"]["values"] = "filter_input_list.txt"
-        input_nml.data["filter_nml"]["output_state_file_list"]["values"] = "filter_output_list.txt"
 
-        # Ensemble manager namelist settings
-        input_nml.data["ensemble_manager_nml"]["tasks_per_node"]["values"] = tasks_per_node
-        input_nml.data["ensemble_manager_nml"]["layout"]["values"] = 2
+            # Set input_state_file_list, output_state_file_list
+            # HK @todo filter_input|output_list.txt is hardcoded in assimilate.py
+            input_nml.data["filter_nml"]["input_state_file_list"]["values"] = "filter_input_list.txt"
+            input_nml.data["filter_nml"]["output_state_file_list"]["values"] = "filter_output_list.txt"
 
-        input_nml.write(os.path.join(confdir, "input.nml"), case)
+            # Ensemble manager namelist settings
+            input_nml.data["ensemble_manager_nml"]["tasks_per_node"]["values"] = tasks_per_node
+            input_nml.data["ensemble_manager_nml"]["layout"]["values"] = 2
 
-        return input_nml
+            # Write per-component input.nml.{comp}; assimilate.py stages this as
+            # input.nml before running filter_{comp}.
+            input_nml.write(os.path.join(confdir, f"input.nml.{comp}"), case)
+            logger.info(f"Wrote input.nml.{comp} for component '{comp}'")
+
+            if first_input_nml is None:
+                first_input_nml = input_nml
+
+        return first_input_nml
 
     def parse_fortran_namelist(filepath):
         """Simple parser for Fortran namelist files."""
