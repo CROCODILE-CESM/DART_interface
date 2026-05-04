@@ -92,15 +92,16 @@ def find_files_for_model_time(rundir, rpointer_prefix, model_time):
     return glob.glob(pattern)
 
 
-def stage_dart_input_nml(case, rundir):
-    """Copy the DART input.nml from Buildconf/dartconf into the run directory."""
-    src = os.path.join(case.get_value("CASEROOT"), "Buildconf", "dartconf", "input.nml")
+def stage_dart_input_nml(case, rundir, comp):
+    """Copy the per-component DART input.nml from Buildconf/dartconf into the run directory.
+    The file is stored as input.nml.{comp} and staged as input.nml."""
+    src = os.path.join(case.get_value("CASEROOT"), "Buildconf", "dartconf", f"input.nml.{comp}")
     dst = os.path.join(rundir, "input.nml")
     if os.path.exists(src):
         shutil.copy(src, dst)
-        logger.info(f"Staged DART input.nml to {dst}")
+        logger.info(f"Staged DART input.nml for '{comp}' to {dst}")
     else:
-        raise FileNotFoundError(f"DART input.nml not found at {src}")
+        raise FileNotFoundError(f"DART input.nml for '{comp}' not found at {src}")
 
 
 def check_required_files(rundir):
@@ -112,6 +113,53 @@ def check_required_files(rundir):
     if missing:
         raise FileNotFoundError(f"Missing required files in {rundir}: {', '.join(missing)}")
     logger.info("All required files are present.")
+
+
+# ---------------------------------------------------------------------------
+# Model converter programs (pre/post filter)
+# ---------------------------------------------------------------------------
+
+def run_model_programs_for_members(case, comp, programs, exeroot, rundir):
+    """
+    Run each serial model converter program once per ensemble member (instance).
+
+    Used for pre-filter converters (e.g. cice_to_dart, clm_to_dart) and
+    post-filter converters (e.g. dart_to_cice, dart_to_clm).  Programs run
+    serially; the instance number (1-based, zero-padded to 4 digits) is passed
+    via the DART_INSTANCE environment variable so programs can locate their
+    member-specific files.
+    """
+    if not programs:
+        return
+    dart_info = DART_COMPONENTS[comp]
+    ninst = case.get_value(dart_info["ninst_var"])
+    if not ninst or ninst < 1:
+        raise ValueError(
+            f"Invalid instance count for component '{comp}': {ninst}"
+        )
+    for program in programs:
+        exe = os.path.join(exeroot, "esp", program)
+        if not os.path.exists(exe):
+            raise FileNotFoundError(f"Converter executable not found: {exe}")
+        for member in range(1, ninst + 1):
+            member_str = f"{member:04d}"
+            logger.info(f"Running {program} for instance {member_str}")
+            env = os.environ.copy()
+            env["DART_INSTANCE"] = member_str
+            try:
+                result = subprocess.run(
+                    exe, env=env, cwd=rundir, check=True,
+                    capture_output=True, text=True
+                )
+                logger.debug(f"{program} instance {member_str} stdout: {result.stdout}")
+                logger.debug(f"{program} instance {member_str} stderr: {result.stderr}")
+            except subprocess.CalledProcessError as e:
+                logger.error(
+                    f"{program} instance {member_str} failed with rc={e.returncode}")
+                logger.error(f"stdout: {e.stdout}")
+                logger.error(f"stderr: {e.stderr}")
+                raise
+        logger.info(f"Completed {program} for all {ninst} instances")
 
 
 # ---------------------------------------------------------------------------
@@ -526,8 +574,8 @@ def run_filter_for_component(case, comp, caseroot, use_mpi=True):
     if dart_info["input_nml_conflict"]:
         backup_model_input_nml(rundir)
 
-    # Stage DART input.nml
-    stage_dart_input_nml(case, rundir)
+    # Stage per-component DART input.nml (input.nml.{comp} -> input.nml)
+    stage_dart_input_nml(case, rundir, comp)
 
     # Verify required files
     check_required_files(rundir)
@@ -537,6 +585,11 @@ def run_filter_for_component(case, comp, caseroot, use_mpi=True):
 
     # Component-specific template symlinks
     _SET_TEMPLATE_FILES[comp](case, rundir)
+
+    # Run pre-filter converter programs (e.g. cice_to_dart) for each member
+    run_model_programs_for_members(
+        case, comp, dart_info.get("pre_filter_programs", []), exeroot, rundir
+    )
 
     # Verify / stage inflation files
     stage_inflation_files(rundir)
@@ -560,6 +613,11 @@ def run_filter_for_component(case, comp, caseroot, use_mpi=True):
         logger.info(f"filter_{comp} completed successfully")
         logger.debug(f"stdout: {result.stdout}")
         logger.debug(f"stderr: {result.stderr}")
+
+        # Run post-filter converter programs (e.g. dart_to_cice) for each member
+        run_model_programs_for_members(
+            case, comp, dart_info.get("post_filter_programs", []), exeroot, rundir
+        )
 
         rename_dart_logs(case, model_time, rundir)
         rename_obs_seq_final(case, model_time, rundir)

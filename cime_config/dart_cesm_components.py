@@ -21,6 +21,8 @@ DART_COMPONENTS = {
         # before filter runs and restored afterwards.
         "input_nml_conflict": True,
         "model_serial_programs": [],
+        "pre_filter_programs": [],
+        "post_filter_programs": [],
     },
     "atm": {
         "dart_model": "cam-se",
@@ -42,6 +44,8 @@ DART_COMPONENTS = {
         "model_serial_programs": [
             "column_rand",
         ],
+        "pre_filter_programs": [],
+        "post_filter_programs": [],
     },
     "lnd": {
         "dart_model": "clm",
@@ -63,6 +67,12 @@ DART_COMPONENTS = {
             "clm_to_dart",
             "dart_to_clm",
         ],
+        "pre_filter_programs": [
+            "clm_to_dart",
+        ],
+        "post_filter_programs": [
+            "dart_to_clm",
+        ],
     },
     "ice": {
         "dart_model": "cice",
@@ -79,6 +89,12 @@ DART_COMPONENTS = {
         "input_nml_conflict": False,
         "model_serial_programs": [
             "cice_to_dart",
+            "dart_to_cice",
+        ],
+        "pre_filter_programs": [
+            "cice_to_dart",
+        ],
+        "post_filter_programs": [
             "dart_to_cice",
         ],
     },

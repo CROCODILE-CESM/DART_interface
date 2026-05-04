@@ -176,28 +176,27 @@ class TestStageDartInputNml:
     """Test stage_dart_input_nml function."""
     
     def test_stage_existing_file(self, tmp_path):
-        """Test staging DART input.nml from Buildconf."""
-        # Setup mock case
+        """Test staging per-component DART input.nml from Buildconf."""
         mock_case = Mock()
         caseroot = tmp_path / "case"
         buildconf = caseroot / "Buildconf" / "dartconf"
         buildconf.mkdir(parents=True)
-        src_input = buildconf / "input.nml"
-        src_input.write_text("dart config")
+        src_input = buildconf / "input.nml.ocn"
+        src_input.write_text("dart ocn config")
         
         rundir = tmp_path / "run"
         rundir.mkdir()
         
         mock_case.get_value.return_value = str(caseroot)
         
-        assimilate.stage_dart_input_nml(mock_case, str(rundir))
+        assimilate.stage_dart_input_nml(mock_case, str(rundir), "ocn")
         
         dst_input = rundir / "input.nml"
         assert dst_input.exists()
-        assert dst_input.read_text() == "dart config"
+        assert dst_input.read_text() == "dart ocn config"
     
     def test_stage_missing_file(self, tmp_path):
-        """Test staging when DART input.nml doesn't exist."""
+        """Test staging when per-component DART input.nml doesn't exist."""
         mock_case = Mock()
         caseroot = tmp_path / "case"
         caseroot.mkdir()
@@ -207,7 +206,7 @@ class TestStageDartInputNml:
         rundir.mkdir()
         
         with pytest.raises(FileNotFoundError):
-            assimilate.stage_dart_input_nml(mock_case, str(rundir))
+            assimilate.stage_dart_input_nml(mock_case, str(rundir), "ocn")
 
 
 class TestSetRestartFiles:
