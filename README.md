@@ -151,8 +151,7 @@ Create an `input.nml` from the DART source code contained in `Makefile.$MODEL.*`
 ./process_makefile_f90.sh $MODEL > input.nml 2>err
 ```
 
-> [! NOTE]
-> Edit `input.nml` and set sensible values for MOM6 as needed.
+Edit `input.nml` and set sensible values for MOM6 as needed.
 
 ### 3. Convert input.nml to YAML
 
