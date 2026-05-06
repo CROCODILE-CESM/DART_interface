@@ -128,13 +128,15 @@ Converts YAML parameter files to JSON format for use in CESM. Processes multiple
 
 # Using Parameter Template Tools
 
-Parameter template tools are to generate the json configuration files for DARTfrom the Fortran source code. This workflow is intended for developers who need to update the default DART namelist values or add new parameters based on changes in the DART source code. Th user does not need to run this workflow to use the DART-CESM interface, as the generated JSON files are included in the repository. However, if you are making changes to the DART source code or want to update the default parameters, you can follow these steps to regenerate the configuration files.
+Parameter template tools are to generate the json configuration files for DART from the Fortran source code. This workflow is intended for developers who need to update the default DART namelist values or add new parameters based on changes in the DART source code. The user does not need to run this workflow to use the DART-CESM interface, as the generated JSON files are included in the repository. However, if you are making changes to the DART source code or want to update the default parameters, you can follow these steps to regenerate the configuration files.
 
 ## Creating input_nml.json for DART
 
-This workflow generates JSON configuration files for DART from Fortran source code:
+This workflow generates JSON configuration files for DART from Fortran source code.
+The workflow uses MOM6, but can be used for other components by changing the model. Note for models that have model_to_dart programs, generate
+Makefile.$MODEL.filter, Makefile.$MODEL.model_to_dart, etc. `process_makefile_f90.sh` will collect all the Makefile.$MODEL.* files to extract the Fortran source files for that model.
 
-### 1. Generate the Makefile for MOM6 filter
+### 1. Generate the Makefile for filter
 
 ```bash
 cd $DART_interface/DART/models/MOM6/work
@@ -143,13 +145,14 @@ cd $DART_interface/DART/models/MOM6/work
 
 ### 2. Extract default namelists from DART source
 
-Create an `input.nml` from the DART source code contained in `Makefile.mom6.filter`:
+Create an `input.nml` from the DART source code contained in `Makefile.$MODEL.*`:
 
 ```bash
-./process_makefile_f90.sh > input.nml 2>err
+./process_makefile_f90.sh $MODEL > input.nml 2>err
 ```
 
-Edit `input.nml` and set sensible values for MOM6 as needed.
+> [! NOTE]
+> Edit `input.nml` and set sensible values for MOM6 as needed.
 
 ### 3. Convert input.nml to YAML
 
