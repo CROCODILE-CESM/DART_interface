@@ -1,0 +1,231 @@
+&location_nml
+  horiz_dist_only = .TRUE.
+  vert_normalization_pressure = 100000.0
+  vert_normalization_height = 10000.0
+  vert_normalization_level = 20.0
+  vert_normalization_scale_height = 5.0
+  approximate_distance = .FALSE.
+  nlon = 71
+  nlat = 36
+  output_box_info = .FALSE.
+  print_box_level = 0
+  special_vert_normalization_obs_types = 'null'
+  special_vert_normalization_pressures = -888888
+  special_vert_normalization_heights = -888888
+  special_vert_normalization_levels = -888888
+  special_vert_normalization_scale_heights = -888888
+/
+
+&algorithm_info_nml
+  qceff_table_filename = ''
+/
+
+&assim_tools_nml
+  cutoff = 0.2
+  sort_obs_inc = .TRUE.
+  spread_restoration = .FALSE.
+  sampling_error_correction = .FALSE.
+  adaptive_localization_threshold = -1
+  adaptive_cutoff_floor = 0.0
+  print_every_nth_obs = 0
+  rectangular_quadrature = .TRUE.
+  gaussian_likelihood_tails = .FALSE.
+  output_localization_diagnostics = .FALSE.
+  localization_diagnostics_file = "localization_diagnostics"
+  special_localization_obs_types = 'null'
+  special_localization_cutoffs = -888888
+  distribute_mean = .FALSE.
+  close_obs_caching = .TRUE.
+  adjust_obs_impact = .FALSE.
+  obs_impact_filename = ''
+  allow_any_impact_values = .FALSE.
+  convert_all_state_verticals_first = .FALSE.
+  convert_all_obs_verticals_first = .TRUE.
+/
+
+&cov_cutoff_nml
+  select_localization = 1
+/
+
+&filter_nml
+  ens_size = 20
+  output_members = .TRUE.
+  obs_sequence_in_name = "obs_seq.out"
+  obs_sequence_out_name = "obs_seq.final"
+  init_time_days = -1
+  init_time_seconds = -1
+  first_obs_days = -1
+  first_obs_seconds = -1
+  last_obs_days = -1
+  last_obs_seconds = -1
+  obs_window_days = -1
+  obs_window_seconds = -1
+  num_output_state_members = 0
+  num_output_obs_members = 0
+  output_interval = 1
+  num_groups = 1
+  trace_execution = .FALSE.
+  output_forward_op_errors = .FALSE.
+  output_timestamps = .FALSE.
+  inf_flavor = 0, 0
+  inf_initial_from_restart = .FALSE., .FALSE.
+  inf_sd_initial_from_restart = .FALSE., .FALSE.
+  inf_sd_max_change = 1.05, 1.05
+  inf_deterministic = .TRUE., .TRUE.
+  inf_damping = 1.0, 1.0
+  inf_initial = 1.0, 1.0
+  inf_sd_initial = 0.0, 0.0
+  inf_lower_bound = 1.0, 1.0
+  inf_upper_bound = 1000000.0, 1000000.0
+  inf_sd_lower_bound = 0.0, 0.0
+  silence = .FALSE.
+  distributed_state = .TRUE.
+  single_file_in = .FALSE.
+  single_file_out = .FALSE.
+  perturb_from_single_instance = .FALSE.
+  perturbation_amplitude = 0.2
+  compute_posterior = .TRUE.
+  stages_to_write = "output    ", "null      ", "null      ", "null      ", "null      ", "null      "
+  input_state_files = ''
+  output_state_files = ''
+  output_state_file_list = ''
+  input_state_file_list = ''
+  output_mean = .TRUE.
+  output_sd = .TRUE.
+  write_all_stages_at_end = .FALSE.
+  write_obs_every_cycle = .FALSE.
+  allow_missing_clm = .FALSE.
+/
+
+&kde_nml
+  quadrature_order = 9
+/
+
+&probit_transform_nml
+  fix_bound_violations = .FALSE.
+  use_logit_instead_of_probit = .FALSE.
+  do_inverse_check = .FALSE.
+/
+
+&quality_control_nml
+  input_qc_threshold = 3.0
+  outlier_threshold = -1.0
+  enable_special_outlier_code = .FALSE.
+/
+
+&reg_factor_nml
+  select_regression = 1
+  input_reg_file = "time_mean_reg"
+  save_reg_diagnostics = .FALSE.
+  reg_diagnostics_file = "reg_diagnostics"
+/
+
+&state_vector_io_nml
+  buffer_state_io = .FALSE.
+  single_precision_output = .FALSE.
+/
+
+&obs_kind_nml
+  assimilate_these_obs_types = 'SOIL_TEMPERATURE',
+                               'SOIL_MOISTURE',
+                               'BIOMASS',
+                               'MODIS_FPAR',
+                               'MODIS_SNOWCOVER_FRAC',
+                               'COSMOS_NEUTRON_INTENSITY',
+                               'MODIS_LEAF_AREA_INDEX',
+                               'OCO2_SIF',
+                               'LEAF_NITROGEN',
+                               'ECOSTRESS_ET',
+                               'TOWER_NETC_ECO_EXCHANGE',
+                               'TOWER_LATENT_HEAT_FLUX',
+                               'TOWER_SENSIBLE_HEAT_FLUX'
+  evaluate_these_obs_types = 'null'
+  use_precomputed_fos_these_obs_types = 'null'
+/
+
+&obs_sequence_nml
+  write_binary_obs_sequence = .FALSE.
+  read_binary_file_format = 'native'
+/
+
+&ensemble_manager_nml
+  communication_configuration = 1
+  layout = 1
+  tasks_per_node = 1
+  debug = .FALSE.
+/
+
+&mpi_utilities_nml
+  reverse_task_layout = .FALSE.
+  all_tasks_print = .FALSE.
+  verbose = .FALSE.
+  async2_verbose = .FALSE.
+  async4_verbose = .FALSE.
+  shell_name = ''
+  separate_node_sync = .FALSE.
+  create_local_comm = .TRUE.
+  make_copy_before_sendrecv = .FALSE.
+  make_copy_before_broadcast = .FALSE.
+/
+
+&utilities_nml
+  termlevel = 2
+  logfilename = 'dart_log.out'
+  module_details = .FALSE.
+  nmlfilename = 'dart_log.nml'
+  print_debug = .FALSE.
+  write_nml = 'file'
+/
+
+&clm_to_dart_nml
+  clm_restart_file = 'clm_restart.nc'
+  verbose = 0
+/
+
+&dart_to_clm_nml
+  dart_to_clm_input_file = 'dart_posterior.nc'
+  dart_to_clm_output_file = 'clm_restart.nc'
+  repartition_swe = 0
+  repartition_vhist_file = 'clm_vector_history.nc'
+  repartition_analysis_file = 'dart_posterior_vector.nc'
+  verbose = 0
+/
+
+&model_nml
+  clm_restart_filename = 'clm_restart.nc'
+  clm_history_filename = 'clm_history.nc'
+  clm_vector_history_filename = 'clm_vector_history.nc'
+  assimilation_period_days = 0
+  assimilation_period_seconds = 60
+  calendar = 'Gregorian'
+  debug = 0
+  clm_variables = 'leafc',       'QTY_LEAF_CARBON',            '0.0', 'NA', 'restart' , 'UPDATE',
+                  'frac_sno',    'QTY_SNOWCOVER_FRAC',         '0.0', '1.', 'restart' , 'NO_COPY_BACK',
+                  'SNOW_DEPTH',  'QTY_SNOW_THICKNESS',         '0.0', 'NA', 'restart' , 'NO_COPY_BACK',
+                  'H2OSOI_LIQ',  'QTY_SOIL_LIQUID_WATER',      '0.0', 'NA', 'restart' , 'UPDATE',
+                  'H2OSOI_ICE',  'QTY_SOIL_ICE',               '0.0', 'NA', 'restart' , 'UPDATE',
+                  'T_SOISNO',    'QTY_TEMPERATURE',            '0.0', 'NA', 'restart' , 'UPDATE',
+                  'livestemc',   'QTY_LIVE_STEM_CARBON',       '0.0', 'NA', 'restart' , 'UPDATE',
+                  'deadstemc',   'QTY_DEAD_STEM_CARBON',       '0.0', 'NA', 'restart' , 'UPDATE',
+                  'NEP',         'QTY_NET_CARBON_PRODUCTION',  'NA' , 'NA', 'history' , 'NO_COPY_BACK',
+                  'H2OSOI',      'QTY_SOIL_MOISTURE',          '0.0', 'NA', 'history' , 'NO_COPY_BACK',
+                  'SMINN_vr',    'QTY_SOIL_MINERAL_NITROGEN',  '0.0', 'NA', 'history' , 'NO_COPY_BACK',
+                  'LITR1N_vr',   'QTY_NITROGEN',               '0.0', 'NA', 'history' , 'NO_COPY_BACK',
+                  'TSOI',        'QTY_SOIL_TEMPERATURE',       'NA' , 'NA', 'history' , 'NO_COPY_BACK',
+                  'FSDSVDLN',    'QTY_PAR_DIRECT',             '0.0', 'NA', 'history' , 'NO_COPY_BACK',
+                  'FSDSVILN',    'QTY_PAR_DIFFUSE',            '0.0', 'NA', 'history' , 'NO_COPY_BACK',
+                  'PARVEGLN',    'QTY_ABSORBED_PAR',           '0.0', 'NA', 'history' , 'NO_COPY_BACK',
+                  'NEE',         'QTY_NET_CARBON_FLUX',        'NA' , 'NA', 'vector'  , 'NO_COPY_BACK',
+                  'H2OSNO',      'QTY_SNOW_WATER',             '0.0', 'NA', 'vector'  , 'NO_COPY_BACK',
+                  'TLAI',        'QTY_LEAF_AREA_INDEX',        '0.0', 'NA', 'vector'  , 'NO_COPY_BACK',
+                  'TWS',         'QTY_TOTAL_WATER_STORAGE',    'NA' , 'NA', 'vector'  , 'NO_COPY_BACK',
+                  'SOILC_vr',    'QTY_SOIL_CARBON',            '0.0', 'NA', 'vector'  , 'NO_COPY_BACK',
+                  'SOIL1N_vr',   'QTY_SOIL_NITROGEN',          '0.0', 'NA', 'vector'  , 'NO_COPY_BACK',
+                  'SMP',         'QTY_SOIL_MATRIC_POTENTIAL',  '0.0', 'NA', 'vector'  , 'NO_COPY_BACK'
+/
+
+&quad_interpolate_nml
+  do_rotate = .FALSE.
+  debug = 0
+/
+

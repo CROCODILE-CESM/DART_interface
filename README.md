@@ -149,7 +149,7 @@ Put this makefile in the `DART_interface/param_templates/` directory as `Makefil
 Create an `input.nml` from the DART source code contained in `Makefile.$MODEL.*`:
 
 ```bash
-./process_makefile_f90.sh $MODEL > input.nml 2>err
+./process_makefile_f90.sh $MODEL > input.nml.$MODEL 2>err
 ```
 
 Edit `input.nml` and set sensible values for the model as needed.

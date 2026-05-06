@@ -25,11 +25,31 @@ def wrap_in_values(data):
     return {'values': data}
 
 
+def check_no_default_entries(nml_file):
+    """Exit with an error if any entries still have '! No default value found'."""
+    marker = '! No default value found'
+    bad_entries = []
+    with open(nml_file) as f:
+        for lineno, line in enumerate(f, start=1):
+            if marker in line:
+                bad_entries.append((lineno, line.rstrip()))
+    if bad_entries:
+        logger.error(
+            f"'{nml_file}' contains entries with no default value. "
+            "Edit these lines before running nml_to_json.py:"
+        )
+        for lineno, line in bad_entries:
+            logger.error(f"  line {lineno}: {line.strip()}")
+        sys.exit(1)
+
+
 def nml_to_json(model, workdir):
     nml_file = os.path.join(workdir, f'input.nml.{model}')
     if not os.path.isfile(nml_file):
         logger.error(f"Namelist file '{nml_file}' not found")
         sys.exit(1)
+
+    check_no_default_entries(nml_file)
 
     # Read Fortran namelist and wrap values
     nml = f90nml.read(nml_file)
