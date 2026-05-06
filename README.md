@@ -120,11 +120,9 @@ The observation kinds to be assimilated in obs_kind_nml have been set to:
 
  
 
-**`nml_to_yaml.py`**  
-Converts Fortran namelist files (`input.nml`) to YAML format (`input_nml.yaml`). Uses the f90nml library to parse namelists and wraps each value in a `{'values': value}` structure for compatibility with CESM parameter management.
-
-**`yaml_to_json.py`**  
-Converts YAML parameter files to JSON format for use in CESM. Processes multiple YAML files (`input_nml.yaml`, `DART_params.yaml`, `input_data_list.yaml`) and outputs corresponding JSON files to the `json/` directory.
+**`nml_to_json.py`**  
+Converts Fortran namelist files (`input.nml`) to JSON format (`input_nml.json`). Uses the f90nml library to parse namelists and wraps each value in a `{'values': value}` structure for compatibility with CESM parameter management.
+The intermediate YAML file is saved, but the final output is a JSON file that can be used in the CESM case setup process.
 
 # Using Parameter Template Tools
 
@@ -156,22 +154,15 @@ Create an `input.nml` from the DART source code contained in `Makefile.$MODEL.*`
 
 Edit `input.nml` and set sensible values for the model as needed.
 
-### 3. Convert input.nml to YAML
+### 3. Convert input.nml to JSON
 
-```bash
-python nml_to_yaml.py input.nml
 ```
-
-This creates `input_nml.yaml` with values wrapped in the structure required by CESM.
-
-### 4. Convert YAML to JSON
-
-```bash
-python yaml_to_json.py
+python nml_to_json.py $MODEL
 ```
 
 This generates JSON files in the `json/` directory for use in CESM case setup.
-
+`input_nml_$MODEL.json`. This is the file that is read by `buildnml` to create the
+`input.nml` used in the assimilation.
 
 # Required Repositories
 
