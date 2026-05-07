@@ -21,12 +21,12 @@ from CIME.build import get_standard_makefile_args
 # Import component registry from the same directory as this file
 _buildlib_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _buildlib_dir)
-from dart_cesm_components import DART_COMPONENTS, get_active_da_components
+from dart_cesm_components import DART_COMPONENTS, get_active_da_components, get_dart_model, parse_model_serial_programs
 
 logger = logging.getLogger(__name__)
 
 
-def _stage_clean_script(active_comps, targetdir):
+def _stage_clean_script(active_comps, targetdir, comp_dart_models, core_dartroot):
     """
     Write a clean_build script to targetdir ($EXEROOT/esp/) so that CIME's
     cleanesp Makefile target can call 'sh ./clean_build'.
@@ -40,14 +40,14 @@ def _stage_clean_script(active_comps, targetdir):
     # Collect model-specific serial program names across all active components
     model_serial = []
     for comp in active_comps:
-        model_serial.extend(DART_COMPONENTS[comp].get("model_serial_programs", []))
+        model_serial.extend(parse_model_serial_programs(comp_dart_models[comp], core_dartroot))
 
     serial_line = f"rm -f {' '.join(model_serial)}" if model_serial else ""
 
     # Pick the first active component to clean preprocess from the DART source tree.
     # Any component's quickbuild.sh will do since they all share the same $DART.
     first_comp = active_comps[0]
-    first_dart_model = DART_COMPONENTS[first_comp]["dart_model"]
+    first_dart_model = comp_dart_models[first_comp]
 
     script = f"""#!/usr/bin/env bash
 # DART clean script for CESM. Called by CIME's cleanesp Makefile target.
@@ -111,14 +111,13 @@ def _build_preprocess_nml(comp, core_dartroot, targetdir):
     logger.info(f"Wrote preprocess input.nml for '{comp}' to {nml_path}")
 
 
-def _build_dart_for_component(comp, core_dartroot, exeroot, build_templates_dir,
+def _build_dart_for_component(comp, dart_model, core_dartroot, exeroot, build_templates_dir,
                                compiler, targetdir):
     """
     Build DART filter (and supporting executables) for one component.
     The resulting 'filter' binary is copied to filter_{comp} in targetdir.
     """
     dart_info = DART_COMPONENTS[comp]
-    dart_model = dart_info["dart_model"]
 
     logger.info(f"Building DART executables for component '{comp}' (model: {dart_model})")
 
@@ -137,7 +136,7 @@ def _build_dart_for_component(comp, core_dartroot, exeroot, build_templates_dir,
     content = _re.sub(r'^export DART=.*$', f"export DART='{core_dartroot}'",
                       content, flags=_re.MULTILINE)
     # Inject model-specific serial programs (e.g. cice_to_dart, dart_to_cice)
-    model_serial = dart_info.get("model_serial_programs", [])
+    model_serial = parse_model_serial_programs(dart_model, core_dartroot)
     if model_serial:
         programs_str = "".join(f"{p}\n" for p in model_serial)
         content = content.replace(
@@ -154,8 +153,8 @@ def _build_dart_for_component(comp, core_dartroot, exeroot, build_templates_dir,
     # Run quickbuild.sh with DART_MODEL and DART_EXTRA set in the environment
     env = os.environ.copy()
     env["DART_MODEL"] = dart_model
-    # cam-se needs the EXTRA path for cam-common-code
-    if dart_model == "cam-se":
+    # cam-fv and cam-se both need DART_EXTRA pointing at cam-common-code
+    if dart_model in ("cam-fv", "cam-se"):
         env["DART_EXTRA"] = os.path.join(core_dartroot, "models", "cam-common-code")
     else:
         env.pop("DART_EXTRA", None)
@@ -175,7 +174,7 @@ def _build_dart_for_component(comp, core_dartroot, exeroot, build_templates_dir,
             logger.info(f"Installed {dst}")
 
     # Copy model-specific serial programs (already uniquely named, e.g. cice_to_dart)
-    for exe in dart_info.get("model_serial_programs", []):
+    for exe in model_serial:
         src = os.path.join(comp_blddir, exe)
         if os.path.exists(src):
             dst = os.path.join(targetdir, exe)
@@ -213,6 +212,9 @@ def CESM_DART_config(case):
     expect(len(active_comps) > 0,
            "No DATA_ASSIMILATION_* flags are True. At least one component must have DA enabled.")
 
+    # Resolve dart_model per component (atm depends on CAM_DYCORE)
+    comp_dart_models = {comp: get_dart_model(comp, case) for comp in active_comps}
+
     # Select the appropriate mkmf.template
     compiler = case.get_value("COMPILER")
     mkmf_template = os.path.join(core_dartroot, "build_templates", "mkmf.template")
@@ -227,7 +229,7 @@ def CESM_DART_config(case):
     os.makedirs(targetdir, exist_ok=True)
 
     # Always stage the clean script so CIME's cleanesp target works
-    _stage_clean_script(active_comps, targetdir)
+    _stage_clean_script(active_comps, targetdir, comp_dart_models, core_dartroot)
 
     # Determine which per-component filter binaries are missing
     missing_comps = [
@@ -259,7 +261,7 @@ def CESM_DART_config(case):
     # Build each missing component
     for comp in missing_comps:
         _build_dart_for_component(
-            comp, core_dartroot, exeroot, build_templates_dir, compiler, targetdir
+            comp, comp_dart_models[comp], core_dartroot, exeroot, build_templates_dir, compiler, targetdir
         )
 
     # Note: the remaining CESM_DART_config tasks are done in buildnml.

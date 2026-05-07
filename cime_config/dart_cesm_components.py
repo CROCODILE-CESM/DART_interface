@@ -4,6 +4,8 @@ Component registry for CESM DART interface.
 Maps each DATA_ASSIMILATION_* component key to the DART model name and all
 model-specific properties needed by buildlib, buildnml, and assimilate.py.
 """
+import os
+import re
 
 DART_COMPONENTS = {
     "ocn": {
@@ -24,12 +26,15 @@ DART_COMPONENTS = {
         # param_templates/json/.  Generated from the model's work/input.nml
         # using the same toolchain as the MOM6 template.
         "input_nml_model": "input_nml_MOM6.json",
-        "model_serial_programs": [],
         "pre_filter_programs": [],
         "post_filter_programs": [],
     },
     "atm": {
-        "dart_model": "cam-se",
+        "dart_model": None,
+        "dart_model_map": {
+            "fv": "cam-fv",
+            "se": "cam-se",
+        },
         "ninst_var": "NINST_ATM",
         "ntasks_var": "NTASKS_ATM",
         "rpointer_prefix": "atm",
@@ -52,9 +57,6 @@ DART_COMPONENTS = {
             "fv": "input_nml_camfv.json",
             "se": "input_nml_camse.json",
         },
-        "model_serial_programs": [
-            "column_rand",
-        ],
         "pre_filter_programs": [],
         "post_filter_programs": [],
     },
@@ -75,10 +77,6 @@ DART_COMPONENTS = {
         ],
         "input_nml_conflict": False,
         "input_nml_model": "input_nml_clm.json",
-        "model_serial_programs": [
-            "clm_to_dart",
-            "dart_to_clm",
-        ],
         "pre_filter_programs": [
             "clm_to_dart",
         ],
@@ -100,10 +98,6 @@ DART_COMPONENTS = {
         ],
         "input_nml_conflict": False,
         "input_nml_model": "input_nml_cice.json",
-        "model_serial_programs": [
-            "cice_to_dart",
-            "dart_to_cice",
-        ],
         "pre_filter_programs": [
             "cice_to_dart",
         ],
@@ -124,3 +118,32 @@ def get_active_da_components(case):
         for comp in COMPONENT_KEYS
         if case.get_value(f"DATA_ASSIMILATION_{comp.upper()}") is True
     ]
+
+
+def get_dart_model(comp, case):
+    """Return the DART model name for a component, resolving dycore maps if needed."""
+    info = DART_COMPONENTS[comp]
+    dart_model = info.get("dart_model")
+    if dart_model is not None:
+        return dart_model
+    dycore_map = info.get("dart_model_map", {})
+    dycore = case.get_value("CAM_DYCORE")
+    if dycore not in dycore_map:
+        raise ValueError(
+            f"Unknown CAM_DYCORE '{dycore}' for component '{comp}'. "
+            f"Expected one of: {list(dycore_map.keys())}"
+        )
+    return dycore_map[dycore]
+
+
+def parse_model_serial_programs(dart_model, core_dartroot):
+    """Parse model_serial_programs from DART/models/{dart_model}/work/quickbuild.sh."""
+    quickbuild = os.path.join(core_dartroot, "models", dart_model, "work", "quickbuild.sh")
+    if not os.path.exists(quickbuild):
+        return []
+    with open(quickbuild) as f:
+        content = f.read()
+    m = re.search(r'model_serial_programs=\(\s*(.*?)\s*\)', content, re.DOTALL)
+    if not m:
+        return []
+    return [p.strip() for p in m.group(1).split() if p.strip()]
