@@ -23,7 +23,7 @@ DART_COMPONENTS = {
         # Full input_nml JSON template for this component, relative to
         # param_templates/json/.  Generated from the model's work/input.nml
         # using the same toolchain as the MOM6 template.
-        "input_nml_model": "input_nml.json",
+        "input_nml_model": "input_nml_MOM6.json",
         "model_serial_programs": [],
         "pre_filter_programs": [],
         "post_filter_programs": [],
@@ -45,7 +45,13 @@ DART_COMPONENTS = {
             "chemistry_quantities_mod.f90",
         ],
         "input_nml_conflict": False,
-        "input_nml_model": "input_nml_atm.json",
+        # ATM has two possible dycores; input_nml_model is resolved at build time
+        # via input_nml_model_map using the case's CAM_DYCORE value.
+        "input_nml_model": None,
+        "input_nml_model_map": {
+            "fv": "input_nml_camfv.json",
+            "se": "input_nml_camse.json",
+        },
         "model_serial_programs": [
             "column_rand",
         ],
@@ -68,7 +74,7 @@ DART_COMPONENTS = {
             "atmosphere_quantities_mod.f90",
         ],
         "input_nml_conflict": False,
-        "input_nml_model": "input_nml_lnd.json",
+        "input_nml_model": "input_nml_clm.json",
         "model_serial_programs": [
             "clm_to_dart",
             "dart_to_clm",
@@ -93,7 +99,7 @@ DART_COMPONENTS = {
             "ocean_quantities_mod.f90",
         ],
         "input_nml_conflict": False,
-        "input_nml_model": "input_nml_ice.json",
+        "input_nml_model": "input_nml_cice.json",
         "model_serial_programs": [
             "cice_to_dart",
             "dart_to_cice",

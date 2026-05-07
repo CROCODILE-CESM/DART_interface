@@ -98,6 +98,15 @@ def buildnml(case, caseroot, compname):
         for comp in active_comps:
             # Each component has its own full input_nml JSON template.
             model_json = DART_COMPONENTS[comp]["input_nml_model"]
+            if model_json is None:
+                dycore_map = DART_COMPONENTS[comp].get("input_nml_model_map", {})
+                dycore = case.get_value("CAM_DYCORE")
+                expect(
+                    dycore in dycore_map,
+                    f"Unknown CAM_DYCORE '{dycore}' for component '{comp}'. "
+                    f"Expected one of: {list(dycore_map.keys())}",
+                )
+                model_json = dycore_map[dycore]
             template_path = os.path.join(
                 dartroot, "param_templates", "json", model_json
             )
