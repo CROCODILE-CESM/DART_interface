@@ -146,10 +146,10 @@ Put this makefile in the `DART_interface/param_templates/` directory as `Makefil
 
 ### 2. Extract default namelists from DART source
 
-Create an `input.nml` from the DART source code contained in `Makefile.$MODEL.*`:
+Create an `input.nml` from the DART source code contained in `Makefile.$MODEL.*`, e.g. for MOM6:
 
 ```bash
-./process_makefile_f90.sh $MODEL > input.nml.$MODEL 2>err
+MODEL=MOM6; ./process_makefile_f90.sh $MODEL > input.nml.$MODEL 2>err
 ```
 
 Edit `input.nml` and set sensible values for the model as needed.
