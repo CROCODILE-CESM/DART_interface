@@ -20,7 +20,7 @@ from CIME.utils import expect, symlink_force
 from CIME.buildnml import parse_input, create_namelist_infile
 
 from dart_input_nml import DART_input_nml
-from dart_input_data_list import DART_input_data_list
+from dart_obs_seq_list import DART_obs_seq_list
 from dart_cesm_components import DART_COMPONENTS, get_active_da_components
 
 logger = logging.getLogger(__name__)
@@ -251,19 +251,15 @@ def buildnml(case, caseroot, compname):
         return nml_dict
 
     def gen_input_data_list():
-        """ 
-        Observational data for DART assimilation
-        This list is generated from the template input_data_list.json based on 
-        logic in dart_input_data_list.py
-        if DATA_ASSIMILATION_OCN == True then 
-          Buildconf/dart.input_data_list will have a list of obs_sequence files
-        if DATA_ASSIMILATION_OCN == False then 
-          Buildconf/dart.input_data_list will be blank
+        """Generate Buildconf/dart.input_data_list of observation sequence files.
+
+        One section per active DA component (ocn_obs_seq, atm_obs_seq, etc.).
+        The base path is DART_OBS_ROOT (defaults to $DIN_LOC_ROOT/esp/dart).
         """
         input_data_list_template = os.path.join(
             dartroot, "param_templates", "json", "input_data_list.json"
         )
-        dart_params = DART_input_data_list.from_json(input_data_list_template)
+        dart_params = DART_obs_seq_list.from_json(input_data_list_template)
         dart_params.write(os.path.join(confdir, '..', "dart.input_data_list"), case)
 
     def set_cesm_data_assimilation_options():
@@ -319,7 +315,6 @@ def buildnml(case, caseroot, compname):
     # generate DART_input_nml
     input_nml = gen_DART_input_nml()
 
-    # generate input_data_list file - HK todo is this obs?
     gen_input_data_list()
 
     # set case xml variables for data assimilation

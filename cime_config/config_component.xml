@@ -42,6 +42,17 @@
     </values>
   </entry>
 
+  <entry id="DART_OBS_ROOT">
+    <type>char</type>
+    <default_value>UNSET</default_value>
+    <group>run_component_dart</group>
+    <file>env_run.xml</file>
+    <desc>Root directory for DART observation sequence files. Expected
+      subdirectory layout: ocn_obs_seq/, atm_obs_seq/, lnd_obs_seq/,
+      ice_obs_seq/.  When UNSET (the default), $DIN_LOC_ROOT/esp/dart
+      is used.  Override with: ./xmlchange DART_OBS_ROOT=/path/to/obs</desc>
+  </entry>
+
   <help>
     =========================================
     DART naming conventions in compset name
