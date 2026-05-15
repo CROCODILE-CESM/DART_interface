@@ -250,7 +250,7 @@ def buildnml(case, caseroot, compname):
 
         return nml_dict
 
-    def gen_input_data_list():
+    def gen_input_obs_data_list():
         """Generate Buildconf/dart.input_data_list of observation sequence files.
 
         One section per active DA component (ocn_obs_seq, atm_obs_seq, etc.).
@@ -315,7 +315,9 @@ def buildnml(case, caseroot, compname):
     # generate DART_input_nml
     input_nml = gen_DART_input_nml()
 
-    gen_input_data_list()
+    # observation sequence files: generate Buildconf/dart.input_data_list based on
+    #  active DA components and DART_OBS_ROOT
+    gen_input_obs_data_list()
 
     # set case xml variables for data assimilation
     set_cesm_data_assimilation_options()
