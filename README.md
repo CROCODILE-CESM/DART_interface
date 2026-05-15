@@ -31,8 +31,8 @@ CIME script that generates DART namelists and configuration files during case se
 **Key responsibilities:**
 - **Configuration validation** - Verifies calendar is set to GREGORIAN (required by DART)
 - **Namelist generation** - Creates `input.nml` from JSON templates with case-specific values:
-  - Sets ensemble size (`ens_size`) to match the number of ocean instances (`NINST_OCN`)
-  - Merges user customizations from `user_nl_dart` into the template
+  - Sets ensemble size (`ens_size`) to match the number of instances
+  - Merges user customizations from `user_nl_dart` (common to all components) and optionally `user_nl_dart_{comp}` (component-specific, takes precedence) into the template
   - Includes a custom Fortran namelist parser to handle user overrides
 - **Variable configuration** - Sets CESM XML variables:
   - `DATA_ASSIMILATION_SCRIPT` - Points to `assimilate.py`
@@ -40,8 +40,9 @@ CIME script that generates DART namelists and configuration files during case se
 - **File staging** - Copies sampling error correction table if needed (for ensemble sizes 3-200)
 - **Input data list** - Generates list of required observational data files
 
-The script reads from `param_templates/json/input_nml.json`
-overwrites this with any namelist options given by a user in `user_nl_dart` in the case directory and writes to `Buildconf/dartconf/input.nml`.
+For each active DA component, the script reads from the corresponding `param_templates/json/input_nml_{comp}.json` template, 
+applies any common overrides from `user_nl_dart` and any component-specific overrides from `user_nl_dart_{comp}` (e.g. `user_nl_dart_cam`, 
+`user_nl_dart_ocn`), and writes to `Buildconf/dartconf/input.nml.{comp}`.
 
 You can run `./preview_namelists --comp esp` to create `Buildconf/dartconf/input.nml` without running a full case setup.
 

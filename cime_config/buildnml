@@ -88,11 +88,11 @@ def buildnml(case, caseroot, compname):
     def gen_DART_input_nml():
         tasks_per_node = case.get_value("MAX_TASKS_PER_NODE")
 
-        # Read user_nl_dart once; it applies to all components
+        # Read common user_nl_dart (applies to all components)
+        common_user_nml = {}
         user_nl_file = os.path.join(caseroot, "user_nl_dart")
-        user_nml = {}
         if os.path.exists(user_nl_file):
-            user_nml = parse_fortran_namelist(user_nl_file)
+            common_user_nml = parse_fortran_namelist(user_nl_file)
 
         first_input_nml = None
         for comp in active_comps:
@@ -115,7 +115,18 @@ def buildnml(case, caseroot, compname):
             # Ensemble size is the same for all active DA components (enforced above)
             input_nml.data["filter_nml"]["ens_size"]["values"] = ens_size
 
-            # Apply user_nl_dart overrides
+            # Merge common and per-component user_nl; component-specific takes precedence
+            import copy
+            user_nml = copy.deepcopy(common_user_nml)
+            comp_user_nl_file = os.path.join(caseroot, f"user_nl_dart_{comp}")
+            if os.path.exists(comp_user_nl_file):
+                comp_user_nml = parse_fortran_namelist(comp_user_nl_file)
+                for nml_name, nml_vars in comp_user_nml.items():
+                    if nml_name not in user_nml:
+                        user_nml[nml_name] = {}
+                    user_nml[nml_name].update(nml_vars)
+
+            # Apply merged user_nl overrides
             for namelist_name, namelist_vars in user_nml.items():
                 if namelist_name in input_nml.data:
                     for var_name, var_value in namelist_vars.items():
