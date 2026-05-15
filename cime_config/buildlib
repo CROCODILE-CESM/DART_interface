@@ -61,8 +61,6 @@ def _stage_clean_script(active_comps, targetdir, comp_dart_models, core_dartroot
 rm -rf build_*/
 # Remove DART executables installed for each component
 rm -f filter_* perfect_model_obs_* fill_inflation_restart_*
-# Remove backward-compatibility filter copy
-rm -f filter
 {serial_line}
 """
     script_path = os.path.join(targetdir, "clean_build")
@@ -181,13 +179,6 @@ def _build_dart_for_component(comp, dart_model, core_dartroot, exeroot, build_te
             shutil.copy2(src, dst)
             logger.info(f"Installed {dst}")
 
-    # @todo HK do we need backward compatibility?
-    # 'filter' without suffix is needed by assimilate.py dispatch; keep a copy
-    # of the last-built filter for backward compatibility (overwritten per component,
-    # assimilate.py uses filter_{comp} names).
-    filter_src = os.path.join(comp_blddir, "filter")
-    if os.path.exists(filter_src):
-        shutil.copy2(filter_src, os.path.join(targetdir, "filter"))
 
 
 def CESM_DART_config(case):
