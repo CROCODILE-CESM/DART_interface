@@ -2,7 +2,8 @@
 
 **CESM-DART interface for MOM6 in the CROCODILE project**
 
-This repository provides the infrastructure to integrate the Data Assimilation Research Testbed (DART) with the Community Earth System Model (CESM), specifically for the MOM6 ocean component. 
+This repository provides the infrastructure to integrate the Data Assimilation Research Testbed (DART) with the Community Earth System Model (CESM).
+It supports data assimilation for multiple CESM components: ocean (MOM6), atmosphere (CAM-SE), land (CLM), and sea-ice (CICE), individually or in combination.
 
 
 ## Repository Overview
@@ -30,8 +31,8 @@ CIME script that generates DART namelists and configuration files during case se
 **Key responsibilities:**
 - **Configuration validation** - Verifies calendar is set to GREGORIAN (required by DART)
 - **Namelist generation** - Creates `input.nml` from JSON templates with case-specific values:
-  - Sets ensemble size (`ens_size`) to match the number of ocean instances (`NINST_OCN`)
-  - Merges user customizations from `user_nl_dart` into the template
+  - Sets ensemble size (`ens_size`) to match the number of instances
+  - Merges user customizations from `user_nl_dart` (common to all components) and optionally `user_nl_dart_{comp}` (component-specific, takes precedence) into the template
   - Includes a custom Fortran namelist parser to handle user overrides
 - **Variable configuration** - Sets CESM XML variables:
   - `DATA_ASSIMILATION_SCRIPT` - Points to `assimilate.py`
@@ -39,8 +40,9 @@ CIME script that generates DART namelists and configuration files during case se
 - **File staging** - Copies sampling error correction table if needed (for ensemble sizes 3-200)
 - **Input data list** - Generates list of required observational data files
 
-The script reads from `param_templates/json/input_nml.json`
-overwrites this with any namelist options given by a user in `user_nl_dart` in the case directory and writes to `Buildconf/dartconf/input.nml`.
+For each active DA component, the script reads from the corresponding `param_templates/json/input_nml_{comp}.json` template, 
+applies any common overrides from `user_nl_dart` and any component-specific overrides from `user_nl_dart_{comp}` (e.g. `user_nl_dart_cam`, 
+`user_nl_dart_ocn`), and writes to `Buildconf/dartconf/input.nml.{comp}`.
 
 You can run `./preview_namelists --comp esp` to create `Buildconf/dartconf/input.nml` without running a full case setup.
 
@@ -49,14 +51,20 @@ CIME script that builds the DART executables and creates the DART library during
 
 **Key responsibilities:**
 - **Compiler configuration** - Selects appropriate `mkmf.template` based on compiler (Intel or GNU)
-- **DART executable building** - Builds three DART programs:
-  - `filter` - Main assimilation executable
-  - `perfect_model_obs` - Creates synthetic observations from model state
-  - `fill_inflation_restart` - Utility to create restart files for inflation parameters. 
-- **Quickbuild automation** - Creates and executes a customized `quickbuild.sh` script:
-  - Substitutes absolute paths for DART source directory
-  - Creates `preprocess_input.nml` for DART preprocessing step
+- **Multi-component support** - Builds DART executables independently for each active DA component (ocean, atmosphere, land, sea-ice), each in its own `build_{comp}/` subdirectory to avoid object-file conflicts
+- **Per-component DART executables** - For each active component builds:
+  - `filter_{comp}` - Main assimilation executable
+  - `perfect_model_obs_{comp}` - Creates synthetic observations from model state
+  - `fill_inflation_restart_{comp}` - Utility to create restart files for inflation parameters
+- **Model-specific serial programs** - Some models require additional converter programs that run before and after `filter`. These are built and installed to `$EXEROOT/esp/`:
+  - CLM (land): `clm_to_dart`, `dart_to_clm`
+  - CICE (sea-ice): `cice_to_dart`, `dart_to_cice`
+- **Preprocess** - Writes a per-component `input.nml` containing only that component's obs types and quantities, then runs DART's `preprocess` program to generate the obs kind/def modules before compilation
+- **Quickbuild automation** - Stages and executes a customised `quickbuild.sh` for each component:
+  - Substitutes absolute path for the DART source directory
+  - Injects model-specific serial programs into `model_serial_programs`
   - Modifies `mkmf` to use parallel make (`-j 8`) for faster compilation
+- **Clean support** - Stages a `clean_build` script at `$EXEROOT/esp/` so that CIME's `cleanesp` Makefile target removes all DART executables and build directories
 - **Library creation** - Builds a minimal `libesp.a` library containing the NUOPC driver stub
 - **Validation** - Checks that `DATA_ASSIMILATION_CYCLES` is greater than 0
 
@@ -70,16 +78,16 @@ DART has a large number of configurable parameters, many of which have default v
 Extracts default namelist values from DART Fortran source files using the fparser2 library. This script parses `.f90` files to identify namelist declarations and their default values, outputting them in Fortran namelist format.
 
 **`process_makefile_f90.sh`**  
-Bash script that extracts all `.f90` source files listed in the DART Makefile.mom6.filter and calls `extract_namelist_defaults.py` on each file to generate a complete `input.nml` file with default values for all DART modules.
+Bash script that extracts all `.f90` source files listed in the DART Makefile.$MODEL.* files and calls `extract_namelist_defaults.py` on each source file to generate a complete `input.nml` file with default values for all DART modules.
 
 
-The 'Makefile.mom6.filter' included in this repository was created by running `quickbuild.sh filter` in the MOM6 DART model work directory.
+The 'Makefile.MOM6.filter' included in this repository was created by running `quickbuild.sh filter` in the MOM6 DART model work directory.
 
 The input.nml generated by `process_makefile_f90.sh` has to be **hand edited** to have
-sensible defaults for DART-MOM6. 
+sensible defaults for DART-MOM6|CICE|CLM|CAM-SE. 
 Sensible defaults are needed in the input.nml so every user-settable option is set, allowing these options to be changed with user_nl_dart.
 
-The model state variables in model_nml have been set to:
+The model state variables in model_nml for MOM6 have been set to:
 
 ```
  model_state_variables = 'Salt', 'QTY_SALINITY ', 'UPDATE',
@@ -113,53 +121,49 @@ The observation kinds to be assimilated in obs_kind_nml have been set to:
 
  
 
-**`nml_to_yaml.py`**  
-Converts Fortran namelist files (`input.nml`) to YAML format (`input_nml.yaml`). Uses the f90nml library to parse namelists and wraps each value in a `{'values': value}` structure for compatibility with CESM parameter management.
-
-**`yaml_to_json.py`**  
-Converts YAML parameter files to JSON format for use in CESM. Processes multiple YAML files (`input_nml.yaml`, `DART_params.yaml`, `input_data_list.yaml`) and outputs corresponding JSON files to the `json/` directory.
+**`nml_to_json.py`**  
+Converts Fortran namelist files (`input.nml`) to JSON format (`input_nml.json`). Uses the f90nml library to parse namelists and wraps each value in a `{'values': value}` structure for compatibility with CESM parameter management.
+The intermediate YAML file is saved, but the final output is a JSON file that can be used in the CESM case setup process.
 
 # Using Parameter Template Tools
 
-Parameter template tools are to generate the json configuration files for DARTfrom the Fortran source code. This workflow is intended for developers who need to update the default DART namelist values or add new parameters based on changes in the DART source code. Th user does not need to run this workflow to use the DART-CESM interface, as the generated JSON files are included in the repository. However, if you are making changes to the DART source code or want to update the default parameters, you can follow these steps to regenerate the configuration files.
+Parameter template tools are to generate the json configuration files for DART from the Fortran source code. This workflow is intended for developers who need to update the default DART namelist values or add new parameters based on changes in the DART source code. The user does not need to run this workflow to use the DART-CESM interface, as the generated JSON files are included in the repository. However, if you are making changes to the DART source code or want to update the default parameters, you can follow these steps to regenerate the configuration files.
 
 ## Creating input_nml.json for DART
 
-This workflow generates JSON configuration files for DART from Fortran source code:
+This workflow generates JSON configuration files for DART from Fortran source code.
+The workflow uses MOM6, but can be used for other components by changing the model. Note for models that have model_to_dart programs, generate
+Makefile.$MODEL.filter, Makefile.$MODEL.model_to_dart, etc. `process_makefile_f90.sh` will collect all the Makefile.$MODEL.* files to extract the Fortran source files for that model.
 
-### 1. Generate the Makefile for MOM6 filter
+### 1. Generate the Makefile for filter
+
 
 ```bash
-cd $DART_interface/DART/models/MOM6/work
+cd $DART_interface/DART/models/$MODEL/work
 ./quickbuild.sh filter
 ```
 
+Put this makefile in the `DART_interface/param_templates/` directory as `Makefile.$MODEL.filter`. 
+
 ### 2. Extract default namelists from DART source
 
-Create an `input.nml` from the DART source code contained in `Makefile.mom6.filter`:
+Create an `input.nml` from the DART source code contained in `Makefile.$MODEL.*`, e.g. for MOM6:
 
 ```bash
-./process_makefile_f90.sh > input.nml 2>err
+MODEL=MOM6; ./process_makefile_f90.sh $MODEL > input.nml.$MODEL 2>err
 ```
 
-Edit `input.nml` and set sensible values for MOM6 as needed.
+Edit `input.nml` and set sensible values for the model as needed.
 
-### 3. Convert input.nml to YAML
+### 3. Convert input.nml to JSON
 
-```bash
-python nml_to_yaml.py input.nml
 ```
-
-This creates `input_nml.yaml` with values wrapped in the structure required by CESM.
-
-### 4. Convert YAML to JSON
-
-```bash
-python yaml_to_json.py
+python nml_to_json.py $MODEL
 ```
 
 This generates JSON files in the `json/` directory for use in CESM case setup.
-
+`input_nml_$MODEL.json`. This is the file that is read by `buildnml` to create the
+`input.nml` used in the assimilation.
 
 # Required Repositories
 
@@ -175,7 +179,7 @@ Tag: `vdart-cmeps1.1.17`
 **DART_interface** (this repository)  
 https://github.com/CROCODILE-CESM/DART_interface.git  
 Branch: `main`  
-Tag: `croc-0.0.1` 
+Tag: `croc-0.0.2` Global CESM 
 
 **CIME:** The Common Infrastructure for Modeling the Earth  
 https://github.com/hkershaw-brown/cime  

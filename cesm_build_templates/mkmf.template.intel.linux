@@ -14,7 +14,7 @@ LD = ifort
 
 INCS = -I$(NETCDF)/include
 LIBS = -L$(NETCDF)/lib -lnetcdff -lnetcdf
-FFLAGS  = -O -assume buffered_io $(INCS)
+FFLAGS  = -O -assume buffered_io -diag-disable=10448 $(INCS)
 LDFLAGS = $(FFLAGS) $(LIBS)
 
 # for development or debugging, use this instead:

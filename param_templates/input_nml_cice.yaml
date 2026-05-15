@@ -1,0 +1,334 @@
+algorithm_info_nml:
+  qceff_table_filename:
+    values: ''
+assim_tools_nml:
+  adaptive_cutoff_floor:
+    values: 0.0
+  adaptive_localization_threshold:
+    values: -1
+  adjust_obs_impact:
+    values: false
+  allow_any_impact_values:
+    values: false
+  close_obs_caching:
+    values: true
+  convert_all_obs_verticals_first:
+    values: true
+  convert_all_state_verticals_first:
+    values: false
+  cutoff:
+    values: 0.2
+  distribute_mean:
+    values: false
+  gaussian_likelihood_tails:
+    values: false
+  localization_diagnostics_file:
+    values: localization_diagnostics
+  obs_impact_filename:
+    values: ''
+  output_localization_diagnostics:
+    values: false
+  print_every_nth_obs:
+    values: 0
+  rectangular_quadrature:
+    values: true
+  sampling_error_correction:
+    values: false
+  sort_obs_inc:
+    values: true
+  special_localization_cutoffs:
+    values: -888888
+  special_localization_obs_types:
+    values: 'null'
+  spread_restoration:
+    values: false
+cice_parameter_nml:
+  cice_parameters:
+    values: ''
+  cice_restart_input_file:
+    values: cice_restart.nc
+  parameter_input_file:
+    values: parameter_prior.nc
+cov_cutoff_nml:
+  select_localization:
+    values: 1
+dart_to_cice_nml:
+  dart_to_cice_input_file:
+    values: post_filter_restart.nc
+  original_cice_restart_file:
+    values: pre_filter_restart.nc
+  postprocess:
+    values: cice
+  postprocessed_output_file:
+    values: postprocessed_restart.nc
+ensemble_manager_nml:
+  communication_configuration:
+    values: 1
+  debug:
+    values: false
+  layout:
+    values: 1
+  tasks_per_node:
+    values: 1
+filter_nml:
+  allow_missing_clm:
+    values: false
+  compute_posterior:
+    values: true
+  distributed_state:
+    values: true
+  ens_size:
+    values: 20
+  first_obs_days:
+    values: -1
+  first_obs_seconds:
+    values: -1
+  inf_damping:
+    values:
+    - 1.0
+    - 1.0
+  inf_deterministic:
+    values:
+    - true
+    - true
+  inf_flavor:
+    values:
+    - 0
+    - 0
+  inf_initial:
+    values:
+    - 1.0
+    - 1.0
+  inf_initial_from_restart:
+    values:
+    - false
+    - false
+  inf_lower_bound:
+    values:
+    - 1.0
+    - 1.0
+  inf_sd_initial:
+    values:
+    - 0.0
+    - 0.0
+  inf_sd_initial_from_restart:
+    values:
+    - false
+    - false
+  inf_sd_lower_bound:
+    values:
+    - 0.0
+    - 0.0
+  inf_sd_max_change:
+    values:
+    - 1.05
+    - 1.05
+  inf_upper_bound:
+    values:
+    - 1000000.0
+    - 1000000.0
+  init_time_days:
+    values: -1
+  init_time_seconds:
+    values: -1
+  input_state_file_list:
+    values: ''
+  input_state_files:
+    values: ''
+  last_obs_days:
+    values: -1
+  last_obs_seconds:
+    values: -1
+  num_groups:
+    values: 1
+  num_output_obs_members:
+    values: 0
+  num_output_state_members:
+    values: 0
+  obs_sequence_in_name:
+    values: obs_seq.out
+  obs_sequence_out_name:
+    values: obs_seq.final
+  obs_window_days:
+    values: -1
+  obs_window_seconds:
+    values: -1
+  output_forward_op_errors:
+    values: false
+  output_interval:
+    values: 1
+  output_mean:
+    values: true
+  output_members:
+    values: true
+  output_sd:
+    values: true
+  output_state_file_list:
+    values: ''
+  output_state_files:
+    values: ''
+  output_timestamps:
+    values: false
+  perturb_from_single_instance:
+    values: false
+  perturbation_amplitude:
+    values: 0.2
+  silence:
+    values: false
+  single_file_in:
+    values: false
+  single_file_out:
+    values: false
+  stages_to_write:
+    values:
+    - 'output    '
+    - 'null      '
+    - 'null      '
+    - 'null      '
+    - 'null      '
+    - 'null      '
+  trace_execution:
+    values: false
+  write_all_stages_at_end:
+    values: false
+  write_obs_every_cycle:
+    values: false
+kde_nml:
+  quadrature_order:
+    values: 9
+location_nml:
+  approximate_distance:
+    values: false
+  horiz_dist_only:
+    values: true
+  nlat:
+    values: 36
+  nlon:
+    values: 71
+  output_box_info:
+    values: false
+  print_box_level:
+    values: 0
+  special_vert_normalization_heights:
+    values: -888888
+  special_vert_normalization_levels:
+    values: -888888
+  special_vert_normalization_obs_types:
+    values: 'null'
+  special_vert_normalization_pressures:
+    values: -888888
+  special_vert_normalization_scale_heights:
+    values: -888888
+  vert_normalization_height:
+    values: 10000.0
+  vert_normalization_level:
+    values: 20.0
+  vert_normalization_pressure:
+    values: 100000.0
+  vert_normalization_scale_height:
+    values: 5.0
+model_nml:
+  assimilation_period_days:
+    values: 1
+  assimilation_period_seconds:
+    values: 0
+  debug:
+    values: 0
+  model_perturbation_amplitude:
+    values: 2.0e-05
+  model_state_variables:
+    values:
+    - aicen
+    - QTY_SEAICE_CONCENTR
+    - UPDATE
+    - vicen
+    - QTY_SEAICE_VOLUME
+    - UPDATE
+    - vsnon
+    - QTY_SEAICE_SNOWVOLUME
+    - UPDATE
+    - "\n  binary_grid_file_format = "
+    - big_endian'
+  update_dry_cell_walls:
+    values: false
+mpi_utilities_nml:
+  all_tasks_print:
+    values: false
+  async2_verbose:
+    values: false
+  async4_verbose:
+    values: false
+  create_local_comm:
+    values: true
+  make_copy_before_broadcast:
+    values: false
+  make_copy_before_sendrecv:
+    values: false
+  reverse_task_layout:
+    values: false
+  separate_node_sync:
+    values: false
+  shell_name:
+    values: ''
+  verbose:
+    values: false
+obs_kind_nml:
+  assimilate_these_obs_types:
+    values:
+    - SAT_SEAICE_AGREG_CONCENTR
+    - SAT_SEAICE_AGREG_THICKNESS
+  evaluate_these_obs_types:
+    values: 'null'
+  use_precomputed_fos_these_obs_types:
+    values: 'null'
+obs_sequence_nml:
+  read_binary_file_format:
+    values: native
+  write_binary_obs_sequence:
+    values: false
+probit_transform_nml:
+  do_inverse_check:
+    values: false
+  fix_bound_violations:
+    values: false
+  use_logit_instead_of_probit:
+    values: false
+quad_interpolate_nml:
+  debug:
+    values: 0
+  do_rotate:
+    values: false
+quality_control_nml:
+  enable_special_outlier_code:
+    values: false
+  input_qc_threshold:
+    values: 3.0
+  outlier_threshold:
+    values: -1.0
+reg_factor_nml:
+  input_reg_file:
+    values: time_mean_reg
+  reg_diagnostics_file:
+    values: reg_diagnostics
+  save_reg_diagnostics:
+    values: false
+  select_regression:
+    values: 1
+state_vector_io_nml:
+  buffer_state_io:
+    values: false
+  single_precision_output:
+    values: false
+utilities_nml:
+  logfilename:
+    values: dart_log.out
+  module_details:
+    values: false
+  nmlfilename:
+    values: dart_log.nml
+  print_debug:
+    values: false
+  termlevel:
+    values: 2
+  write_nml:
+    values: file

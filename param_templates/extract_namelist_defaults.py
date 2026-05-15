@@ -52,13 +52,24 @@ def extract_namelist_defaults(filename):
     # Preprocess the source
     src = preprocess_fortran(src)
     
-    # Truncate at 'contains' to avoid parsing executable code
-    if 'contains' in src.lower():
-        # Split and keep only the part before 'contains'
-        parts = src.lower().split('contains')
-        src = src[:len(parts[0])]  # Keep original case up to 'contains'
-        # Add end module to make it valid Fortran
-        src += '\nend module\n'
+    # Determine whether this is a module or program
+    is_module = bool(re.search(r'^\s*module\s+\w+', src, re.MULTILINE | re.IGNORECASE))
+
+    if is_module:
+        # For modules, truncate at 'contains' to skip subroutine bodies
+        contains_match = re.search(r'^\s*contains\s*(!.*)?$', src, re.MULTILINE | re.IGNORECASE)
+        if contains_match:
+            src = src[:contains_match.start()]
+            src += '\nend module\n'
+    else:
+        # For programs, truncate at the first executable statement ('call ...')
+        # to avoid parsing code after the specification part.
+        # Programs may also have 'contains' (for internal subroutines) but all
+        # namelist declarations precede the first call.
+        call_match = re.search(r'^\s*call\s+', src, re.MULTILINE | re.IGNORECASE)
+        if call_match:
+            src = src[:call_match.start()]
+            src += '\nend program\n'
     
     try:
         # Parse the Fortran source
