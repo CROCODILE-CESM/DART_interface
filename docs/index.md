@@ -4,7 +4,8 @@
 
 # DART_interface
 
-CESM-DART interface for the CROCODILE project.
+CESM-DART interface for the CROCODILE project.  
+[DART_interface GitHub Repository](https://github.com/CROCODILE-CESM/DART_interface)
 
 ```{toctree}
 :maxdepth: 2
