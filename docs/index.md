@@ -1,3 +1,7 @@
+% To build the docs
+% cd docs
+% sphinx-build -b html . _build/html
+
 # DART_interface
 
 CESM-DART interface for the CROCODILE project.
@@ -15,7 +19,7 @@ call_tree
 :maxdepth: 3
 :caption: Repository structure
 
-README
+repo_overview
 ```
 
 
