@@ -9,6 +9,14 @@ CESM-DART interface for the CROCODILE project.
 
 ```{toctree}
 :maxdepth: 2
+:caption: User documentation
+
+running_dart_as_a_cesm_component
+```
+
+
+```{toctree}
+:maxdepth: 2
 :caption: Assimilation
 
 assimilate
