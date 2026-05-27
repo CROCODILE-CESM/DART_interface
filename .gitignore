@@ -8,6 +8,9 @@ buildnmlc
 .coverage
 .vscode
 
+# Sphinx docs build output
+docs/_build/
+
 # param_templates
 err
 mk1

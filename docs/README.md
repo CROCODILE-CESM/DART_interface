@@ -23,7 +23,7 @@ The main data assimilation script that:
 - Stages DART input files and observations
 - Manages MOM6 restart files for ensemble members
 - Runs the DART filter executable
-- Handles file backup and restoration to avoid naming conflicts between MOM6 and DART
+- Handles file backup and restoration to avoid naming conflicts between component models and DART
 
 ### `cime_config/buildnml`
 CIME script that generates DART namelists and configuration files during case setup. This script is called automatically by CESM during the `case.setup` and `case.build` phases, and is called by `preview_namelists`.
