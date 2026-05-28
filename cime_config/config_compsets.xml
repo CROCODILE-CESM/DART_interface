@@ -41,8 +41,15 @@
   <!-- G compsets -->
 
   <compset>
+    <alias>G_DA</alias>
+    <lname>2000_DATM%NYF_SLND_CICE_MOM6_DROF%NYF_SGLC_SWAV_DART%1</lname>
+  </compset>
+
+  <compset>
     <alias>G_JRA_DA</alias>
     <lname>2000_DATM%JRA-1p5-2023_SLND_CICE_MOM6_DROF%JRA-1p5-2023_SGLC_SWAV_DART%1</lname>
   </compset>
+
+
 
 </compsets>
