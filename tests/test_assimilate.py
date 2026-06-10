@@ -463,19 +463,23 @@ class TestRenameStageFiles:
             (rundir / f"{base}.nc").write_text(content)
 
         model_time = ModelTime(2001, 1, 15, 43200)
-        assimilate.rename_stage_files(case, model_time, str(rundir))
+        assimilate.rename_stage_files(case, "ocn", model_time, str(rundir))
         date_str = "2001-01-15-43200"
 
-        # Check renamed staged files, except for input_*inf*, output_*inf* files
+        # Check renamed staged files, except for input_*inf* (skipped) and
+        # output_*inf* (renamed to .rh. restart-history files)
         for base, content in files.items():
             if fnmatch.fnmatch(base, "input_*inf*"):
                 print(f"skipping check for {base}.nc")
                 continue
-            dart_file = rundir / f"{base}.testcase.{date_str}.nc"
+            if fnmatch.fnmatch(base, "output_*inf*"):
+                dart_file = rundir / f"testcase.dart.rh.ocn_{base}.{date_str}.nc"
+            else:
+                dart_file = rundir / f"testcase.dart.ocn_{base}.{date_str}.nc"
             assert dart_file.exists(), f"Missing {dart_file}"
             assert dart_file.read_text() == content
 
-        # Original files should not exist, except for input_*inf* and output_*inf* files
+        # Original files should not exist, except for input_*inf* files
         for base in files:
             if fnmatch.fnmatch(base, "input_*inf*" ):
                 assert (rundir / f"{base}.nc").exists(), f"Should exist: {base}.nc"
@@ -497,11 +501,11 @@ class TestRenameDartLogs:
         log_out.write_text("log out content")
         log_nml.write_text("log nml content")
         # Call function
-        assimilate.rename_dart_logs(mock_case, model_time, str(rundir))
+        assimilate.rename_dart_logs(mock_case, "ocn", model_time, str(rundir))
         # Check new filenames
         date_str = f"2020-05-06-12345"
-        new_log_out = rundir / f"dart_log.testcase.{date_str}.out"
-        new_log_nml = rundir / f"dart_log.testcase.{date_str}.nml"
+        new_log_out = rundir / f"testcase.dart.log.ocn.{date_str}.out"
+        new_log_nml = rundir / f"testcase.dart.log.ocn.{date_str}.nml"
         assert new_log_out.exists()
         assert new_log_nml.exists()
         assert new_log_out.read_text() == "log out content"
@@ -520,9 +524,9 @@ class TestRenameObsSeqFinal:
         obs_seq = rundir / "obs_seq.final"
         obs_seq.write_text("obs seq content")
         # Call function
-        assimilate.rename_obs_seq_final(case, model_time, str(rundir))
+        assimilate.rename_obs_seq_final(case, "ocn", model_time, str(rundir))
         date_str = f"2020-05-06-12345"
-        new_obs_seq = rundir / f"obs_seq.final.testcase.{date_str}"
+        new_obs_seq = rundir / f"testcase.dart.ocn_obs_seq_final.{date_str}"
         assert new_obs_seq.exists()
         assert new_obs_seq.read_text() == "obs seq content"
 
@@ -534,7 +538,7 @@ class TestRenameObsSeqFinal:
         rundir.mkdir()
         # obs_seq.final does not exist
         with pytest.raises(FileNotFoundError):
-            assimilate.rename_obs_seq_final(case, model_time, str(rundir))
+            assimilate.rename_obs_seq_final(case, "ocn", model_time, str(rundir))
 
 
 class TestStageInflationFiles:

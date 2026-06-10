@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<components version="2.0">
+  <comp_archive_spec compname="dart" compclass="esp">
+    <!-- File naming convention (produced by the rename_* functions in
+         assimilate.py):
+
+           $CASE.dart.rh.{comp}_output_priorinf_mean.YYYY-MM-DD-SSSSS.nc
+           $CASE.dart.{comp}_obs_seq_final.YYYY-MM-DD-SSSSS
+           $CASE.dart.{comp}_{stage}_{member}.YYYY-MM-DD-SSSSS.nc
+           $CASE.dart.log.{comp}.YYYY-MM-DD-SSSSS.{out,nml}
+
+         where {comp} is ocn, atm, lnd, or ice.  Log files need no entry
+         here: anything containing '.log.' is moved to $DOUT_S_ROOT/logs/
+         by st_archive's standard log handling. -->
+
+    <!-- Inflation output files are treated as restarts: st_archive copies
+         the latest set to $DOUT_S_ROOT/rest/<date>/ so an archived restart
+         date is self-contained for restore_from_archive. -->
+    <rest_file_extension>rh</rest_file_extension>
+
+    <!-- Everything else filter produces is history, moved to
+         $DOUT_S_ROOT/esp/hist/.  st_archive matches
+         'dart.<hist_file_extension>' in the filename; all DART history
+         names start with '{comp}_', so two \w groups joined by '_'
+         matches them all while excluding the 'rh' and 'log' extensions. -->
+    <hist_file_extension>\w+_\w+</hist_file_extension>
+
+    <rest_history_varname>unset</rest_history_varname>
+
+    <!-- DART does not use rpointer files; 'unset' content means st_archive
+         writes no rpointer file for this component -->
+    <rpointer>
+      <rpointer_file>rpointer.unset</rpointer_file>
+      <rpointer_content>unset</rpointer_content>
+    </rpointer>
+
+    <test_file_names>
+      <tfile disposition="copy">casename.dart.rh.ocn_output_priorinf_mean.1976-01-01-00000.nc</tfile>
+      <tfile disposition="copy">casename.dart.rh.ocn_output_priorinf_sd.1976-01-01-00000.nc</tfile>
+      <tfile disposition="copy">casename.dart.rh.ocn_output_postinf_mean.1976-01-01-00000.nc</tfile>
+      <tfile disposition="copy">casename.dart.rh.ocn_output_postinf_sd.1976-01-01-00000.nc</tfile>
+      <tfile disposition="move">casename.dart.ocn_obs_seq_final.1976-01-01-00000</tfile>
+      <tfile disposition="move">casename.dart.ocn_forecast_mean.1976-01-01-00000.nc</tfile>
+      <tfile disposition="move">casename.dart.ocn_preassim_mean.1976-01-01-00000.nc</tfile>
+      <tfile disposition="move">casename.dart.ocn_preassim_sd.1976-01-01-00000.nc</tfile>
+      <tfile disposition="move">casename.dart.ocn_preassim_member_0001.1976-01-01-00000.nc</tfile>
+      <tfile disposition="move">casename.dart.ocn_postassim_mean.1976-01-01-00000.nc</tfile>
+      <tfile disposition="move">casename.dart.ocn_analysis_member_0001.1976-01-01-00000.nc</tfile>
+      <tfile disposition="move">casename.dart.ocn_output_mean.1976-01-01-00000.nc</tfile>
+      <tfile disposition="move">casename.dart.atm_obs_seq_final.1976-01-01-00000</tfile>
+      <tfile disposition="move">casename.dart.atm_output_sd.1976-01-01-00000.nc</tfile>
+      <!-- input_*inf*.nc files staged for the next cycle keep their
+           unprefixed names, so st_archive must leave them alone -->
+      <tfile disposition="copy">input_priorinf_mean.nc</tfile>
+      <tfile disposition="copy">input_priorinf_sd.nc</tfile>
+    </test_file_names>
+  </comp_archive_spec>
+</components>

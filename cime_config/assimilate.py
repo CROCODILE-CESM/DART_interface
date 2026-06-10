@@ -466,37 +466,49 @@ def rename_inflation_files(rundir):
 # Post-filter file renaming
 # ---------------------------------------------------------------------------
 
-def rename_dart_logs(case, model_time, rundir):
-    """Rename dart_log.out / dart_log.nml to include case name and model time."""
+def rename_dart_logs(case, comp, model_time, rundir):
+    """Rename dart_log.out / dart_log.nml to $CASE.dart.log.{comp}.{date}.{out,nml}.
+    The '.log.' piece routes them to $DOUT_S_ROOT/logs/ via st_archive's
+    standard log file handling."""
     case_name = case.get_value("CASE")
     date_str = (f"{model_time.year:04}-{model_time.month:02}"
                 f"-{model_time.day:02}-{model_time.seconds:05}")
     for suffix in ["out", "nml"]:
         src = os.path.join(rundir, f"dart_log.{suffix}")
         if os.path.exists(src):
-            dst = os.path.join(rundir, f"dart_log.{case_name}.{date_str}.{suffix}")
+            dst = os.path.join(
+                rundir, f"{case_name}.dart.log.{comp}.{date_str}.{suffix}")
             os.rename(src, dst)
             logger.info(f"Renamed {src} to {dst}")
 
 
-def rename_obs_seq_final(case, model_time, rundir):
-    """Rename obs_seq.final to obs_seq.final.<case>.<model_time>."""
+def rename_obs_seq_final(case, comp, model_time, rundir):
+    """Rename obs_seq.final to $CASE.dart.{comp}_obs_seq_final.{date} so
+    st_archive moves it to $DOUT_S_ROOT/esp/hist/."""
     case_name = case.get_value("CASE")
     src = os.path.join(rundir, "obs_seq.final")
     if not os.path.exists(src):
         raise FileNotFoundError(f"obs_seq.final not found in {rundir}")
     date_str = (f"{model_time.year:04}-{model_time.month:02}"
                 f"-{model_time.day:02}-{model_time.seconds:05}")
-    dst = os.path.join(rundir, f"obs_seq.final.{case_name}.{date_str}")
+    dst = os.path.join(
+        rundir, f"{case_name}.dart.{comp}_obs_seq_final.{date_str}")
     os.rename(src, dst)
     logger.info(f"Renamed obs_seq.final to {dst}")
 
 
-def rename_stage_files(case, model_time, rundir):
+def rename_stage_files(case, comp, model_time, rundir):
     """
     Rename filter stage output files (forecast, preassim, postassim, analysis,
-    output, input) to include case name and model time.  Inflation input files
-    (input_*inf*.nc) are skipped because they are consumed by the next cycle.
+    output, input) to $CASE.dart.{comp}_{stage}_{member}.{date}.nc so
+    st_archive moves them to $DOUT_S_ROOT/esp/hist/.
+
+    Exceptions:
+    - input_*inf*.nc are skipped: they are consumed by the next cycle.
+    - output_*inf*.nc become $CASE.dart.rh.{comp}_{...}.{date}.nc: the 'rh'
+      extension makes st_archive treat them as restart files, so the latest
+      set is copied (not moved) to $DOUT_S_ROOT/rest/<date>/.
+      rename_inflation_files() must run first to stage the input_* copies.
     """
     case_name = case.get_value("CASE")
     date_str = (f"{model_time.year:04}-{model_time.month:02}"
@@ -511,7 +523,11 @@ def rename_stage_files(case, model_time, rundir):
                 if fnmatch.fnmatch(base, "input_*inf*"):
                     logger.debug(f"Skipping inflation file rename: {filepath}")
                     continue
-                new_path = os.path.join(rundir, f"{base}.{case_name}.{date_str}.nc")
+                if fnmatch.fnmatch(base, "output_*inf*"):
+                    new_name = f"{case_name}.dart.rh.{comp}_{base}.{date_str}.nc"
+                else:
+                    new_name = f"{case_name}.dart.{comp}_{base}.{date_str}.nc"
+                new_path = os.path.join(rundir, new_name)
                 os.rename(filepath, new_path)
                 logger.debug(f"Renamed {filepath} to {new_path}")
 
@@ -619,10 +635,10 @@ def run_filter_for_component(case, comp, caseroot, use_mpi=True):
             case, comp, dart_info.get("post_filter_programs", []), exeroot, rundir
         )
 
-        rename_dart_logs(case, model_time, rundir)
-        rename_obs_seq_final(case, model_time, rundir)
+        rename_dart_logs(case, comp, model_time, rundir)
+        rename_obs_seq_final(case, comp, model_time, rundir)
         rename_inflation_files(rundir)
-        rename_stage_files(case, model_time, rundir)
+        rename_stage_files(case, comp, model_time, rundir)
 
     except subprocess.CalledProcessError as e:
         logger.error(f"filter_{comp} failed with return code {e.returncode}")
