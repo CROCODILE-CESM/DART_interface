@@ -31,7 +31,6 @@ You will need to clone the CESM repository and check out the branch with DART su
 ```
 git clone https://github.com/hkershaw-brown/CESM.git CESM_DA
 cd CESM_DA/  
-git checkout dart-cesm3.0-alphabranch  
 ./bin/git-fleximod update  
 ```
 
