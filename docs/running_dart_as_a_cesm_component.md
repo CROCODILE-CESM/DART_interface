@@ -46,7 +46,7 @@ In the example below we are creating a case with 3 ensemble members.
 ```
 ./cime/scripts/create_newcase \
                     --run-unsupported \
-                    --res TL319_t232 \ 
+                    --res T62_t232 \
                     --compset G_DA \
                     --case /glade/work/$USER/da-cases/da-mom6-test.0001 \
                     --ninst 3 --multi-driver --project P86850054
