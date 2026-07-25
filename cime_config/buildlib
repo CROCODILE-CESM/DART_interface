@@ -210,7 +210,7 @@ def CESM_DART_config(case):
     compiler = case.get_value("COMPILER")
     mkmf_template = os.path.join(core_dartroot, "build_templates", "mkmf.template")
     if compiler == "intel":
-        shutil.copy(os.path.join(build_templates_dir, "mkmf.template.intel.linux"), mkmf_template)
+        shutil.copy(os.path.join(build_templates_dir, "mkmf.template.ifx.linux"), mkmf_template)
     elif compiler == "gnu":
         shutil.copy(os.path.join(build_templates_dir, "mkmf.template.gfortran"), mkmf_template)
     else:
