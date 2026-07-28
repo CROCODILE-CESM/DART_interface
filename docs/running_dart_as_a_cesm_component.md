@@ -55,7 +55,7 @@ In the example below we are creating a case with 3 ensemble members.
 
 `--run-unsupported`: This flag allows you to create a case that is not officially supported by the CESM team. This is necessary for using DART as a component because it is not yet an officially supported configuration.
 
-`--res TL319_t232`: This is the resolution of the model. TL319 is the atmospheric resolution and t232 is the ocean resolution.  
+`--res T62_t232`: This is the resolution of the model. T62 is the atmospheric resolution and t232 is the ocean resolution.
 
 `--compset G_DA`: This specifies the component set to use. G_DA is a data assimilation component set that includes the necessary components for running DART.  
 
@@ -131,8 +131,14 @@ Buildconf/dart.input_data_list
 The dart input.nml created by preview_namelists is in 
 
 ```
-Buildconf/dartconf/input.nml
+Buildconf/dartconf/input.nml.ocn
 ```
+
+Since in this example we have set `DATA_ASSIMILATION_OCN=TRUE`, we are only assimilating ocean observations and therefore the input.nml file is `input.nml.ocn`. If you were assimilating atmosphere observations, the input.nml file would be `input.nml.atm` and so on for land and sea-ice.
+
+@todo user_nl_dart component specific namelist options
+@todo preview namelist to prevent having to rebuild the case with esp change (or fix this)
+
 
 To take a look at DATA_ASSIMILATION variables set in the case:
 
