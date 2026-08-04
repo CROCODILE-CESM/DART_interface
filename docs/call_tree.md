@@ -58,14 +58,31 @@ CIME model advance (each cycle)
             │   ├── set_template_files_lnd()  (no-op)
             │   └── set_template_files_ice()  (no-op)
             ├── run_model_programs_for_members(pre_filter_programs)
-            ├── stage_inflation_files(rundir)
-            │   └── parse_inflation_settings(input.nml)
+            ├── stage_inflation_files(case, comp, rundir)
+            │   ├── parse_inflation_settings(input.nml)
+            │   ├── inflation_restart_pattern(case, comp, token, field)
+            │   ├── _make_symlink()                  [newest .rh. -> input_*inf_*.nc]
+            │   └── set_nml_array_value()            [first cycle: inf_*_from_restart -> .false.]
             ├── subprocess: filter_{comp}
             ├── run_model_programs_for_members(post_filter_programs)
-            ├── rename_dart_logs()
-            ├── rename_obs_seq_final()
-            ├── rename_inflation_files()
-            ├── rename_stage_files()
-            └── restore_model_input_nml(rundir) [if input_nml_conflict, in finally]
+            ├── rename_dart_logs()                   [success path only]
+            ├── rename_obs_seq_final()               [success path only]
+            ├── rename_stage_files()                 [success path only]
+            ├── unstage_inflation_files(rundir)      [in finally, always runs]
+            └── restore_model_input_nml(rundir)      [if input_nml_conflict, in finally]
+
+CIME st_archive (end of job)
+└── case_st_archive()                               [CIME, no DART_interface code]
+    └── reads cime_config/config_archive.xml
+        ├── $CASE.dart.rh.{comp}_output_*inf_*.<date>.nc
+        │       -> copied to $DOUT_S_ROOT/rest/<date>/, newest set kept in RUNDIR,
+        │          older sets pruned; next cycle's stage_inflation_files finds it
+        ├── $CASE.dart.{comp}_*.<date>.nc | .<date>
+        │       -> moved to $DOUT_S_ROOT/esp/hist/
+        ├── $CASE.dart.log.{comp}.<date>.{out,nml}
+        │       -> moved to $DOUT_S_ROOT/logs/ by standard log handling
+        └── input_*inf_*.nc
+                -> matches nothing, left in RUNDIR (they are transient symlinks
+                   and are removed by unstage_inflation_files anyway)
 
 ```
