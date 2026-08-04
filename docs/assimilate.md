@@ -31,11 +31,19 @@ The order of operations for each component is:
 5. Build `filter_input_list.txt` / `filter_output_list.txt` from rpointer files
 6. Create component-specific template symlinks
 7. Run pre-filter converter programs for each ensemble member (e.g. `cice_to_dart`)
-8. Verify inflation restart files are present (if inflation is configured)
+8. Stage this component's inflation restarts onto the fixed `input_*inf_*.nc`
+   names filter reads, or turn `inf_*_from_restart` off for this cycle if there
+   is no restart yet (first assimilation)
 9. Run `filter_{comp}` with MPI
 10. Run post-filter converter programs for each ensemble member (e.g. `dart_to_cice`)
-11. Rename output files (logs, `obs_seq.final`, inflation files, stage files)
-12. Restore model `input.nml` if it was backed up (MOM6 only)
+11. Rename output files (logs, `obs_seq.final`, stage files, inflation restarts)
+12. Remove the inflation staging symlinks — in a `finally` block, so a failed
+    filter cannot leave a stale link behind
+13. Restore model `input.nml` if it was backed up (MOM6 only)
+
+Steps 12 and 13 are both in the `finally` block, so they run whether or not
+filter succeeded.  Step 11 runs only on the success path, which is why the
+renames precede the unstage.
 
 ---
 
@@ -66,11 +74,7 @@ given model time.
 
 ---
 
-### Observation and Input Staging
-
-#### `get_observations(case, comp, rundir)`
-Finds the correct `obs_seq.out` for the component (by model time) and copies it
-to `rundir`.
+### Input Staging
 
 #### `stage_dart_input_nml(case, rundir, comp)`
 Each component's filter requires its own `input.nml` (the model state variables,
@@ -78,6 +82,14 @@ obs kinds, and other settings differ per component).  `buildnml` generates a
 file `Buildconf/dartconf/input.nml.{comp}` for every active component during
 the build phase.  This function copies it into `rundir` as `input.nml`
 immediately before running `filter_{comp}`.
+
+Because this recopies the file at the top of every cycle, any runtime edit made
+to `rundir/input.nml` lasts for one component-cycle only.  The inflation
+bootstrap (below) relies on that.
+
+#### `check_required_files(rundir)`
+Raises `FileNotFoundError` unless both `input.nml` and `obs_seq.out` are present
+in `rundir`.
 
 ---
 
@@ -165,41 +177,126 @@ matching the date pattern `obs_seq.0Z.{YYYYMMDD}`.  Symlinks the file into
 
 ### Inflation File Handling
 
+Inflation is the only DART file that has to survive from one cycle to the next:
+filter writes `output_*inf_*.nc` at the end of cycle *N* and reads the same
+fields back as `input_*inf_*.nc` at the start of cycle *N+1*.
+
+Two facts make this awkward. DART hardwires those names relative to the current
+working directory (`set_filename_info` in `filter_mod.f90`) with no namelist
+override, and every component runs filter in the same `RUNDIR`. A single
+untagged set of files therefore cannot represent more than one component.
+
+The interface solves this by keeping the persistent copy **component tagged and
+dated**, and treating the fixed names as transient staging symlinks:
+
+```
+$CASE.dart.rh.{comp}_output_{priorinf|postinf}_{mean|sd}.YYYY-MM-DD-SSSSS.nc
+```
+
 #### `parse_inflation_settings(input_nml_path)`
 Parses `filter_nml` from the DART `input.nml` using a built-in Fortran namelist
-parser.  Returns a dict with `prior` and `posterior` keys containing the
-inflation flavour and restart flags.
+parser.  Returns `{'prior': {...}, 'posterior': {...}}` — one entry per column of
+DART's inflation namelist arrays — each containing `inf_flavor`,
+`inf_initial_from_restart`, `inf_sd_initial_from_restart`, `inf_initial` and
+`inf_sd_initial`.
 
-#### `stage_inflation_files(rundir)`
-If inflation is active and configured to read from restart (`inf_flavor > 0` and
-`inf_initial_from_restart = .true.`), checks that the required files are present:
-- `input_priorinf_mean.nc`, `input_priorinf_sd.nc`
-- `input_postinf_mean.nc`, `input_postinf_sd.nc`
+Note `inf_flavor` is the inflation *scheme* (0 none, 2 spatially varying, 3
+spatially constant, 4 RTPS, 5 enhanced), a separate axis from the prior/posterior
+distinction, and it applies to each independently.
 
-#### `rename_inflation_files(rundir)`
-After filter runs, copies `output_{priorinf,postinf}_{mean,sd}.nc` to
-`input_{priorinf,postinf}_{mean,sd}.nc` so they are ready for the next cycle.
+#### `inflation_restart_pattern(case_name, comp, token, field)`
+Builds the glob for the archived restarts, where `token` is `priorinf` or
+`postinf` and `field` is `mean` or `sd`.
+
+#### `stage_inflation_files(case, comp, rundir)`
+For each of prior and posterior, if that column has `inf_flavor > 0` and asks for
+inflation from restart, globs `$CASE.dart.rh.{comp}_output_*` and symlinks the
+newest match onto the fixed name filter reads.  Selection is by newest timestamp
+rather than an rpointer file; `YYYY-MM-DD-SSSSS` sorts chronologically, so a
+lexical sort suffices.  Returns the list of staged paths.
+
+Only the fields actually requested are staged: `mean` if
+`inf_initial_from_restart`, `sd` if `inf_sd_initial_from_restart`.
+
+**First assimilation.** If a column asks for inflation from restart but no file
+matches, this is the first cycle for that component. `inf_initial_from_restart`
+and `inf_sd_initial_from_restart` are set `.false.` for that column in the staged
+`input.nml` only, so filter initialises inflation from the case's own
+`inf_initial` / `inf_sd_initial` and writes a restart the next cycle can use.
+Those namelist values therefore apply to the **first cycle only** — see
+`user_nl_dart` for the user-facing description.
+
+Nothing has to set the flags back: `stage_dart_input_nml` recopies
+`input.nml.{comp}` at the top of the next cycle, so the edit does not persist,
+and `Buildconf/dartconf/input.nml.{comp}` is never written to.
+
+Detection is by absence of a restart file, **not** `cycle == 0`, which is true at
+the start of every submission. Evaluation is per column, so enabling posterior
+inflation partway through an experiment bootstraps only the posterior and leaves
+accumulated prior inflation intact. A half present set (mean but not sd) raises
+rather than bootstrapping, since bootstrapping would discard real inflation
+state.
+
+A warning is logged if inflation is on but `inf_sd_initial <= 0`.
+`update_inflation` returns early when `inflate_sd <= 0` and the `sd_lower_bound`
+clamp is downstream of that guard, so the zero is written into the inflation
+restart and every later cycle reads sd from that file rather than from the
+namelist: inflation stays time-constant for the whole run, not just the first
+cycle. The shipped templates default to `0.0`.
+
+#### `unstage_inflation_files(rundir)`
+Removes the `input_*inf_*.nc` staging symlinks.  Called from
+`run_filter_for_component`'s `finally` block, so a failed filter cannot leave a
+stale link to one component's inflation where another component would pick it
+up.  Only symlinks are removed; a real file of the same name is left alone and
+reported.
+
+#### `set_nml_array_value(input_nml_path, group, var, index, value)`
+Sets one element of a Fortran namelist array in place, preserving the other
+element and all surrounding text, and handling values continued across lines.
+Used by the bootstrap to flip a single `inf_*_from_restart` column.  Raises
+`KeyError` if the group or variable is absent.
 
 ---
 
 ### Post-Filter File Renaming
 
-All output files are renamed to include the case name and model time so that
-files from different cycles do not overwrite each other.
+Filter writes fixed, unqualified names.  Every output is renamed to include the
+case name, the component and the model time, so that files from different cycles
+and different components do not overwrite each other, and so that `st_archive`
+can classify them.  `{date}` below is `YYYY-MM-DD-SSSSS`.
 
-#### `rename_dart_logs(case, model_time, rundir)`
-`dart_log.out` → `dart_log.{case}.{datetime}.out`
-`dart_log.nml` → `dart_log.{case}.{datetime}.nml`
+#### `rename_dart_logs(case, comp, model_time, rundir)`
+`dart_log.out` → `$CASE.dart.log.{comp}.{date}.out`
+`dart_log.nml` → `$CASE.dart.log.{comp}.{date}.nml`
 
-#### `rename_obs_seq_final(case, model_time, rundir)`
-`obs_seq.final` → `obs_seq.final.{case}.{datetime}`
+The `.log.` element is what routes these to `$DOUT_S_ROOT/logs/` via
+`st_archive`'s standard log handling, so they need no `config_archive.xml` entry.
 
-#### `rename_stage_files(case, model_time, rundir)`
-Renames all `{stage}_{member}.nc` files (stages: `input`, `forecast`,
-`preassim`, `postassim`, `analysis`, `output`) to
-`{stage}_{member}.{case}.{datetime}.nc`.
-Inflation input files (`input_*inf*.nc`) are skipped because they are consumed
-by the next cycle.
+#### `rename_obs_seq_final(case, comp, model_time, rundir)`
+`obs_seq.final` → `$CASE.dart.{comp}_obs_seq_final.{date}`
+
+#### `rename_stage_files(case, comp, model_time, rundir)`
+Renames all `{stage}_{member}.nc` files — stages `input`, `forecast`, `preassim`,
+`postassim`, `analysis`, `output`; members `member*`, `mean`, `sd`, and the four
+inflation fields — to `$CASE.dart.{comp}_{stage}_{member}.{date}.nc`, which
+`st_archive` moves to `$DOUT_S_ROOT/esp/hist/`.
+
+Two exceptions:
+
+- **`output_*inf*.nc`** become `$CASE.dart.rh.{comp}_{...}.{date}.nc`.  The `rh`
+  extension makes `st_archive` treat them as restarts rather than history, so the
+  newest set is *copied* to `$DOUT_S_ROOT/rest/<date>/` and left in the run
+  directory while older sets are pruned from it.  That leaves exactly one dated
+  set per component for the next cycle's `stage_inflation_files` to find.
+  `output_mean` / `output_sd` contain no `inf` and stay history files.
+- **`input_*inf*.nc`** are skipped.  These are the staging symlinks, and they are
+  still present at this point because `unstage_inflation_files` runs afterwards in
+  the `finally` block.  Renaming them would rename the link, so `st_archive`
+  would copy the previous cycle's inflation into `esp/hist/` every cycle.  The
+  pattern is deliberately narrow: with `input` in `stages_to_write`, filter also
+  writes `input_mean.nc` / `input_sd.nc` / `input_member_0001.nc`, which contain
+  no `inf` and are correctly archived as history diagnostics.
 
 ---
 
@@ -219,6 +316,11 @@ Orchestrates all of the above steps for a single component.  Runs
 `$EXEROOT/esp/filter_{comp}` using the MPI run command from the case
 (`MPI_RUN_COMMAND`) and number of tasks (`NTASKS_ESP`).
 
+Filter and everything after it run inside a `try`.  A non-zero return code
+raises `subprocess.CalledProcessError` after logging filter's stdout and stderr,
+which aborts the whole component loop — no later component runs.  The `finally`
+block always runs `unstage_inflation_files` and, for MOM6, `restore_model_input_nml`.
+
 ---
 
 ### Entry Points
@@ -231,3 +333,43 @@ Main entry point called by CIME.  Iterates over active components and calls
 #### `main()`
 Command-line entry point with `argparse`. Accepts `caseroot`, `cycle`, and
 `--no-mpi` flag.
+
+---
+
+## Short-Term Archiver Contract
+
+`cime_config/config_archive.xml` tells `st_archive` how to classify the files
+named above.  The naming is not free — these constraints come from CIME's
+matching logic in `CIME/case/case_st_archive.py` and `CIME/XML/archive_base.py`.
+
+| declaration | value | effect |
+|---|---|---|
+| `rest_file_extension` | `rh` | `$CASE.dart.rh.*` are restarts: newest set copied to `rest/<date>/`, older pruned from `RUNDIR` |
+| `hist_file_extension` | `\w+_\w+` | everything else `$CASE.dart.*` is history, moved to `esp/hist/` |
+| `rest_history_varname` | `unset` | no history files are tied to restarts |
+| `rpointer` | `unset` | DART writes no rpointer; inflation is selected by newest timestamp instead |
+
+Three constraints worth knowing before changing any name:
+
+1. **The restart extension must never contain an underscore.**  History matching
+   is `dart\.` + `hist_file_extension`, unanchored.  An extension containing an
+   underscore would also satisfy `\w+_\w+`, and the inflation restarts would be
+   moved to `esp/hist/` instead of archived as restarts.
+2. **Timestamps must match a coupler restart.**  `st_archive` discovers dates by
+   globbing `$CASE.cpl.r.*.nc`.  A DART file stamped with any other date matches
+   nothing and is silently left in `RUNDIR`.  Times come from
+   `DRV_RESTART_POINTER`, so they agree by construction.
+3. **The restart name must have no dots between `.rh.` and the date**, because
+   restart matching is `_?\d*\.rh\.[^\.]*\.?<date>`.
+
+`test_file_names` in the same file is a self-test fixture, not production
+configuration.  Each `<tfile>` becomes a stub file whose contents are its
+`disposition`; `st_archive` runs over them and every file is checked to have
+ended up where that word says.  `copy` means it must remain in `RUNDIR` *and*
+appear under `archive/`; `move` means gone from `RUNDIR` and present in
+`archive/`; `ignore` means it stays put and must never be archived — which is
+correct for `input_*inf_*.nc`, since those carry no `$CASE` prefix and no date and
+so could not be attributed to a component or a cycle.
+
+The `STARCHIVE` phase of every CIME system test calls `case.test_env_archive()`,
+so `./create_test` on any DART test exercises this.
