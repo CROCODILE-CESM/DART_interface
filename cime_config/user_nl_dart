@@ -25,4 +25,22 @@
 ! xmlchange.
 !
 !------------------------------------------------------------------------
+! Inflation
+!
+! With inf_initial_from_restart / inf_sd_initial_from_restart = .true.,
+! inflation is read from the restart written by the previous assimilation
+! cycle.  On the FIRST cycle of a new case there is no such file yet, so
+! assimilate.py turns the from_restart flags off for that cycle only and
+! filter starts from inf_initial / inf_sd_initial below.  Set them to the
+! values you want inflation to begin at; from the second cycle onward they
+! are ignored, because inflation comes from the restart file.
+!
+! inf_sd_initial must be greater than zero for inflation to adapt.  With
+! inf_sd_initial = 0.0 (the template default) inflation stays fixed at
+! inf_initial for the WHOLE run, not just the first cycle: the zero is
+! written into the inflation restart and read back every cycle after.
+! 0.6 is a common starting value.  dart_log.out reports 'time-constant'
+! instead of 'time-adaptive' inflation when this happens.
+!
+!------------------------------------------------------------------------
 
