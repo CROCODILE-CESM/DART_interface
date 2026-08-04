@@ -405,37 +405,101 @@ class TestGetModelTime:
         with pytest.raises(ValueError, match="DRV_RESTART_POINTER is not set"):
             assimilate.get_model_time(mock_case)
 
-class TestRenameInflationFiles:
-    """
-    Test rename_inflation_files function matches implementation:
-    - Renames output_* files to dart_output_*.<case>.<date_str>.nc
-    - Copies dart_output_* files to input_* files for next cycle
-    """
-    def test_rename_inflation_files(self, tmp_path):
+class TestUnstageInflationFiles:
+    """Test unstage_inflation_files removes staging symlinks only."""
+
+    def test_removes_symlinks(self, tmp_path):
         rundir = tmp_path / "run"
         rundir.mkdir()
- 
-        # Create dummy inflation files
-        files = {
-            "priorinf_mean": "prior mean",
-            "priorinf_sd": "prior sd",
-            "postinf_mean": "post mean",
-            "postinf_sd": "post sd"
-        }
-        for base, content in files.items():
-            (rundir / f"output_{base}.nc").write_text(content)
+        target = rundir / "testcase.dart.rh.ocn_output_priorinf_mean.2001-01-15-00000.nc"
+        target.write_text("prior mean")
+        link = rundir / "input_priorinf_mean.nc"
+        link.symlink_to(target)
 
-        assimilate.rename_inflation_files(str(rundir))
-  
-        # Check input_* files
-        for base, content in files.items():
-            input_file = rundir / f"input_{base}.nc"
-            assert input_file.exists()
-            assert input_file.read_text() == content
+        assimilate.unstage_inflation_files(str(rundir))
 
-        # Original files should exist
-        for base in files:
-            assert (rundir / f"output_{base}.nc").exists()
+        assert not link.exists() and not link.is_symlink()
+        assert target.exists(), "unstage must not touch the archived restart"
+
+    def test_leaves_regular_file(self, tmp_path):
+        """A real file of the same name is reported, not deleted."""
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        real = rundir / "input_postinf_sd.nc"
+        real.write_text("hand placed")
+
+        assimilate.unstage_inflation_files(str(rundir))
+
+        assert real.exists()
+        assert real.read_text() == "hand placed"
+
+    def test_tolerates_absence(self, tmp_path):
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        assimilate.unstage_inflation_files(str(rundir))  # must not raise
+
+
+class TestSetNmlArrayValue:
+    """Test the targeted namelist array element rewriter."""
+
+    def _write(self, tmp_path, text):
+        path = tmp_path / "input.nml"
+        path.write_text(text)
+        return str(path)
+
+    def test_sets_second_element_only(self, tmp_path):
+        path = self._write(tmp_path, """
+&filter_nml
+  inf_flavor = 2, 2
+  inf_initial_from_restart = .TRUE., .TRUE.
+  inf_initial = 1.0, 1.0
+/
+""")
+        assimilate.set_nml_array_value(
+            path, "filter_nml", "inf_initial_from_restart", 1, False)
+
+        settings = assimilate.parse_inflation_settings(path)
+        assert settings['prior']['inf_initial_from_restart'] is True
+        assert settings['posterior']['inf_initial_from_restart'] is False
+        # Neighbouring variables untouched
+        assert settings['prior']['inf_flavor'] == 2
+        assert settings['prior']['inf_initial'] == 1.0
+
+    def test_sets_first_element_only(self, tmp_path):
+        path = self._write(tmp_path, """
+&filter_nml
+  inf_initial_from_restart = .true., .true.,
+/
+""")
+        assimilate.set_nml_array_value(
+            path, "filter_nml", "inf_initial_from_restart", 0, False)
+
+        settings = assimilate.parse_inflation_settings(path)
+        assert settings['prior']['inf_initial_from_restart'] is False
+        assert settings['posterior']['inf_initial_from_restart'] is True
+
+    def test_only_edits_named_group(self, tmp_path):
+        path = self._write(tmp_path, """
+&other_nml
+  inf_initial_from_restart = .true., .true.
+/
+&filter_nml
+  inf_initial_from_restart = .true., .true.
+/
+""")
+        assimilate.set_nml_array_value(
+            path, "filter_nml", "inf_initial_from_restart", 0, False)
+
+        text = open(path).read()
+        other = text.split("&filter_nml")[0]
+        assert ".true., .true." in other, "&other_nml must not be modified"
+
+    def test_missing_var_raises(self, tmp_path):
+        path = self._write(tmp_path, "&filter_nml\n  inf_flavor = 0, 0\n/\n")
+        with pytest.raises(KeyError):
+            assimilate.set_nml_array_value(
+                path, "filter_nml", "inf_initial_from_restart", 0, False)
+
 
 class TestRenameStageFiles:
     """
@@ -542,45 +606,356 @@ class TestRenameObsSeqFinal:
 
 
 class TestStageInflationFiles:
-    def test_stage_inflation_files_required_files_posterior(self, tmp_path):
-        # Create input.nml with posterior inflation from file
-        nml_content = """
-&filter_nml
-    inf_flavor                  = 0, 2,
-    inf_initial_from_restart    = .false., .true.,
-/"""
-        rundir = tmp_path / "run"
-        rundir.mkdir()
-        (rundir / "input.nml").write_text(nml_content)
-        # Should raise FileNotFoundError if posterior inflation files are missing
-        with pytest.raises(FileNotFoundError) as excinfo:
-            assimilate.stage_inflation_files(str(rundir))
-        assert "input_postinf_mean.nc" in str(excinfo.value)
-        # Create the required posterior inflation files
-        (rundir / "input_postinf_mean.nc").write_text("")
-        (rundir / "input_postinf_sd.nc").write_text("")
-        # Should not raise now
-        assimilate.stage_inflation_files(str(rundir))
+    """
+    stage_inflation_files symlinks the newest $CASE.dart.rh.{comp}_output_*
+    restart onto the fixed input_* name filter reads, per component.
+    """
 
-    def test_stage_inflation_files_required_files_prior(self, tmp_path):
-        # Create input.nml with prior inflation from file
-        nml_content = """
+    BOTH_KINDS = """
 &filter_nml
-   inf_flavor                  = 2, 0,
-   inf_initial_from_restart    = .true., .false.,
-/"""
+   inf_flavor                  = 2, 2
+   inf_initial_from_restart    = .true., .true.
+   inf_sd_initial_from_restart = .true., .true.
+   inf_initial                 = 1.0, 1.0
+   inf_sd_initial              = 0.6, 0.6
+/
+"""
+
+    def _rundir(self, tmp_path, nml=None):
         rundir = tmp_path / "run"
         rundir.mkdir()
-        (rundir / "input.nml").write_text(nml_content)
-        # Should raise FileNotFoundError if inflation files are missing
-        with pytest.raises(FileNotFoundError) as excinfo:
-            assimilate.stage_inflation_files(str(rundir))
-        assert "input_priorinf_mean.nc" in str(excinfo.value)
-        # Create the required inflation files
-        (rundir / "input_priorinf_mean.nc").write_text("")
-        (rundir / "input_priorinf_sd.nc").write_text("")
-        # Should not raise now
-        assimilate.stage_inflation_files(str(rundir))
+        (rundir / "input.nml").write_text(nml if nml else self.BOTH_KINDS)
+        return rundir
+
+    def _case(self, casename="testcase"):
+        case = Mock()
+        case.get_value.return_value = casename
+        return case
+
+    def _restart(self, rundir, comp, token, field, date, content=None):
+        name = f"testcase.dart.rh.{comp}_output_{token}_{field}.{date}.nc"
+        path = rundir / name
+        path.write_text(content if content is not None else name)
+        return path
+
+    def test_newest_wins(self, tmp_path):
+        """With several dated restarts present, the latest date is staged."""
+        rundir = self._rundir(tmp_path)
+        dates = ["1976-01-01-00000", "1976-01-03-00000", "1976-01-02-00000"]
+        for date in dates:
+            for token in ("priorinf", "postinf"):
+                for field in ("mean", "sd"):
+                    self._restart(rundir, "ocn", token, field, date)
+
+        assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
+
+        link = rundir / "input_priorinf_mean.nc"
+        assert link.is_symlink()
+        assert os.path.basename(os.readlink(str(link))) == \
+            "testcase.dart.rh.ocn_output_priorinf_mean.1976-01-03-00000.nc"
+
+    def test_per_component_isolation(self, tmp_path):
+        """This is the regression test for cross-component clobbering: with ocn
+        and atm restarts both present, staging atm must pick the atm file."""
+        rundir = self._rundir(tmp_path)
+        date = "1976-01-01-00000"
+        for comp in ("ocn", "atm"):
+            for token in ("priorinf", "postinf"):
+                for field in ("mean", "sd"):
+                    self._restart(rundir, comp, token, field, date)
+
+        assimilate.stage_inflation_files(self._case(), "atm", str(rundir))
+        link = rundir / "input_priorinf_mean.nc"
+        assert link.read_text() == \
+            "testcase.dart.rh.atm_output_priorinf_mean.1976-01-01-00000.nc"
+
+        # Restaging for ocn must repoint the same fixed name.
+        assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
+        assert link.read_text() == \
+            "testcase.dart.rh.ocn_output_priorinf_mean.1976-01-01-00000.nc"
+
+    def test_flavor_zero_stages_nothing(self, tmp_path):
+        rundir = self._rundir(tmp_path, """
+&filter_nml
+   inf_flavor                  = 0, 0
+   inf_initial_from_restart    = .true., .true.
+   inf_sd_initial_from_restart = .true., .true.
+/
+""")
+        assert assimilate.stage_inflation_files(
+            self._case(), "ocn", str(rundir)) == []
+        assert not (rundir / "input_priorinf_mean.nc").exists()
+
+    def test_not_from_restart_stages_nothing(self, tmp_path):
+        """Namelist-initialised inflation needs no staging and no bootstrap."""
+        nml = """
+&filter_nml
+   inf_flavor                  = 2, 2
+   inf_initial_from_restart    = .false., .false.
+   inf_sd_initial_from_restart = .false., .false.
+/
+"""
+        rundir = self._rundir(tmp_path, nml)
+        assert assimilate.stage_inflation_files(
+            self._case(), "ocn", str(rundir)) == []
+        # input.nml must be untouched — no bootstrap happened
+        assert (rundir / "input.nml").read_text() == nml
+
+    def test_only_requested_fields_staged(self, tmp_path):
+        """sd not from restart: mean is staged, sd is not."""
+        rundir = self._rundir(tmp_path, """
+&filter_nml
+   inf_flavor                  = 2, 0
+   inf_initial_from_restart    = .true., .false.
+   inf_sd_initial_from_restart = .false., .false.
+/
+""")
+        for field in ("mean", "sd"):
+            self._restart(rundir, "ocn", "priorinf", field, "1976-01-01-00000")
+
+        staged = assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
+
+        assert (rundir / "input_priorinf_mean.nc").is_symlink()
+        assert not (rundir / "input_priorinf_sd.nc").exists()
+        assert len(staged) == 1
+
+    def test_bootstrap_when_no_restart(self, tmp_path):
+        """First assimilation: no restart exists, so inf_*_from_restart is
+        turned off for this cycle and filter uses the namelist values."""
+        rundir = self._rundir(tmp_path)
+
+        staged = assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
+
+        assert staged == []
+        assert not (rundir / "input_priorinf_mean.nc").exists()
+        settings = assimilate.parse_inflation_settings(str(rundir / "input.nml"))
+        for key in ("prior", "posterior"):
+            assert settings[key]['inf_initial_from_restart'] is False
+            assert settings[key]['inf_sd_initial_from_restart'] is False
+            # flavor and the case's initial values must survive the rewrite
+            assert settings[key]['inf_flavor'] == 2
+            assert settings[key]['inf_initial'] == 1.0
+            assert settings[key]['inf_sd_initial'] == 0.6
+
+    def test_bootstrap_preserves_case_initial_values(self, tmp_path):
+        """
+        The bootstrap must leave inf_initial / inf_sd_initial alone: those
+        namelist variables already mean 'the values to use when not reading a
+        restart', so the case's own settings are what the first cycle starts
+        from.  Only the from_restart flags are flipped.
+        """
+        rundir = self._rundir(tmp_path, """
+&filter_nml
+   inf_flavor                  = 2, 2
+   inf_initial_from_restart    = .true., .true.
+   inf_sd_initial_from_restart = .true., .true.
+   inf_initial                 = 1.4, 1.7
+   inf_sd_initial              = 0.6, 0.9
+/
+""")
+        assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
+
+        settings = assimilate.parse_inflation_settings(str(rundir / "input.nml"))
+        # Flags off so filter does not try to read a file that is not there ...
+        for key in ("prior", "posterior"):
+            assert settings[key]['inf_initial_from_restart'] is False
+            assert settings[key]['inf_sd_initial_from_restart'] is False
+        # ... but every value the user chose survives, per component and per
+        # prior/posterior slot.
+        assert settings['prior']['inf_initial'] == 1.4
+        assert settings['posterior']['inf_initial'] == 1.7
+        assert settings['prior']['inf_sd_initial'] == 0.6
+        assert settings['posterior']['inf_sd_initial'] == 0.9
+        assert settings['prior']['inf_flavor'] == 2
+
+    def test_no_namelist_edit_when_restart_exists(self, tmp_path):
+        """A cycle with real inflation to read must not touch input.nml at all."""
+        nml = """
+&filter_nml
+   inf_flavor                  = 2, 2
+   inf_initial_from_restart    = .true., .true.
+   inf_sd_initial_from_restart = .true., .true.
+   inf_initial                 = 1.4, 1.7
+   inf_sd_initial              = 0.6, 0.9
+/
+"""
+        rundir = self._rundir(tmp_path, nml)
+        for token in ("priorinf", "postinf"):
+            for field in ("mean", "sd"):
+                self._restart(rundir, "ocn", token, field, "1976-01-01-00000")
+
+        assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
+
+        assert (rundir / "input.nml").read_text() == nml, \
+            "input.nml must be untouched when inflation restarts exist"
+
+    def test_bootstrap_warns_when_sd_is_zero(self, tmp_path, caplog):
+        """inf_sd_initial = 0 with inflation on freezes inflation for the whole
+        run, not just the bootstrap cycle, so say so at runtime.  The shipped
+        templates default to 0.0, so this is easy to hit by accident."""
+        import logging
+        caplog.set_level(logging.WARNING)
+        rundir = self._rundir(tmp_path, """
+&filter_nml
+   inf_flavor                  = 2, 0
+   inf_initial_from_restart    = .true., .false.
+   inf_sd_initial_from_restart = .true., .false.
+   inf_initial                 = 1.0, 1.0
+   inf_sd_initial              = 0.0, 0.0
+/
+""")
+        assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
+        assert "time-constant" in caplog.text
+
+    def test_bootstrap_quiet_when_sd_positive(self, tmp_path, caplog):
+        """A positive sd is the normal adaptive case — no scary warning."""
+        import logging
+        caplog.set_level(logging.WARNING)
+        rundir = self._rundir(tmp_path)  # BOTH_KINDS has inf_sd_initial = 0.6
+
+        assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
+
+        assert "time-constant" not in caplog.text
+        assert "first assimilation" in caplog.text
+
+    def test_bootstrap_is_per_kind(self, tmp_path):
+        """Prior has a restart, posterior does not (posterior inflation enabled
+        mid-experiment): only posterior is bootstrapped."""
+        rundir = self._rundir(tmp_path)
+        for field in ("mean", "sd"):
+            self._restart(rundir, "ocn", "priorinf", field, "1976-01-01-00000")
+
+        staged = assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
+
+        assert len(staged) == 2
+        assert (rundir / "input_priorinf_mean.nc").is_symlink()
+        assert not (rundir / "input_postinf_mean.nc").exists()
+        settings = assimilate.parse_inflation_settings(str(rundir / "input.nml"))
+        assert settings['prior']['inf_initial_from_restart'] is True
+        assert settings['posterior']['inf_initial_from_restart'] is False
+
+    def test_partial_set_raises(self, tmp_path):
+        """A half-present set means something went wrong; bootstrapping would
+        silently discard accumulated inflation, so refuse instead."""
+        rundir = self._rundir(tmp_path)
+        self._restart(rundir, "ocn", "priorinf", "mean", "1976-01-01-00000")
+        self._restart(rundir, "ocn", "postinf", "mean", "1976-01-01-00000")
+        self._restart(rundir, "ocn", "postinf", "sd", "1976-01-01-00000")
+
+        with pytest.raises(FileNotFoundError, match="incomplete prior inflation"):
+            assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
+
+    def test_stage_then_unstage_leaves_restart(self, tmp_path):
+        """Round trip: rename_stage_files must see no input_*inf* left behind."""
+        rundir = self._rundir(tmp_path)
+        for token in ("priorinf", "postinf"):
+            for field in ("mean", "sd"):
+                self._restart(rundir, "ocn", token, field, "1976-01-01-00000")
+
+        assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
+        assimilate.unstage_inflation_files(str(rundir))
+
+        leftover = [p.name for p in rundir.glob("input_*inf_*.nc")]
+        assert leftover == []
+        assert len(list(rundir.glob("testcase.dart.rh.ocn_output_*.nc"))) == 4
+
+    def test_bootstrap_does_not_persist_to_next_cycle(self, tmp_path):
+        """
+        The bootstrap flip is applied to the staged copy in RUNDIR only.  Nothing
+        has to set inf_initial_from_restart back to .true.: stage_dart_input_nml
+        re-copies Buildconf/dartconf/input.nml.{comp} at the top of every cycle,
+        so the edit is discarded.  This test drives the real staging function to
+        pin that, and asserts the case's own copy is never modified.
+        """
+        caseroot = tmp_path / "case"
+        confdir = caseroot / "Buildconf" / "dartconf"
+        confdir.mkdir(parents=True)
+        source = confdir / "input.nml.ocn"
+        source.write_text(self.BOTH_KINDS)
+
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+
+        case = Mock()
+        case.get_value.side_effect = lambda key: {
+            "CASEROOT": str(caseroot), "CASE": "testcase"}.get(key)
+
+        # Cycle 1: nothing to stage, so the staged copy is flipped off.
+        assimilate.stage_dart_input_nml(case, str(rundir), "ocn")
+        assimilate.stage_inflation_files(case, "ocn", str(rundir))
+        staged = assimilate.parse_inflation_settings(str(rundir / "input.nml"))
+        assert staged['prior']['inf_initial_from_restart'] is False
+
+        # The case's copy is untouched, which is what makes the flip revert.
+        assert source.read_text() == self.BOTH_KINDS
+
+        # Cycle 2: restaging restores .true., and now a restart exists.
+        for token in ("priorinf", "postinf"):
+            for field in ("mean", "sd"):
+                self._restart(rundir, "ocn", token, field, "1976-01-01-00000")
+        assimilate.stage_dart_input_nml(case, str(rundir), "ocn")
+        restaged = assimilate.parse_inflation_settings(str(rundir / "input.nml"))
+        assert restaged['prior']['inf_initial_from_restart'] is True
+
+        assimilate.stage_inflation_files(case, "ocn", str(rundir))
+        assert (rundir / "input_priorinf_mean.nc").is_symlink()
+        final = assimilate.parse_inflation_settings(str(rundir / "input.nml"))
+        assert final['prior']['inf_initial_from_restart'] is True
+
+    def test_two_cycles_two_components(self, tmp_path):
+        """
+        End-to-end regression test for cross-component clobbering.
+
+        Emulates two cycles of ocn+ICE DA sharing one run directory: cycle 1
+        bootstraps both components, cycle 2 must read each component's OWN
+        cycle-1 inflation.  Before per-component staging, cycle 2's second
+        component read the first component's field.
+        """
+        rundir = self._rundir(tmp_path)
+        case = self._case()
+
+        def fake_filter(comp, cycle):
+            """Stand in for filter: record what was linked, write output_*."""
+            read = {}
+            for token in ("priorinf", "postinf"):
+                for field in ("mean", "sd"):
+                    src = rundir / f"input_{token}_{field}.nc"
+                    read[f"{token}_{field}"] = src.read_text() if src.exists() else None
+                    (rundir / f"output_{token}_{field}.nc").write_text(
+                        f"{comp}/cycle{cycle}")
+            return read
+
+        observed = {}
+        for cycle, model_time in ((1, ModelTime(1976, 1, 1, 0)),
+                                  (2, ModelTime(1976, 1, 2, 0))):
+            for comp in ("ocn", "ice"):
+                (rundir / "input.nml").write_text(self.BOTH_KINDS)
+                assimilate.stage_inflation_files(case, comp, str(rundir))
+                settings = assimilate.parse_inflation_settings(
+                    str(rundir / "input.nml"))
+                read = fake_filter(comp, cycle)
+                assimilate.unstage_inflation_files(str(rundir))
+                assimilate.rename_stage_files(case, comp, model_time, str(rundir))
+                observed[(cycle, comp)] = (
+                    settings['prior']['inf_initial_from_restart'],
+                    read['priorinf_mean'])
+
+        # Cycle 1: nothing to read, so both components bootstrap.
+        for comp in ("ocn", "ice"):
+            assert observed[(1, comp)] == (False, None)
+
+        # Cycle 2: each component reads its own cycle-1 inflation.
+        assert observed[(2, "ocn")] == (True, "ocn/cycle1")
+        assert observed[(2, "ice")] == (True, "ice/cycle1")
+
+        # Both cycles' restarts are present and per component; no untagged
+        # inflation file survives for st_archive to trip over.
+        assert list(rundir.glob("input_*inf_*.nc")) == []
+        for comp in ("ocn", "ice"):
+            for date in ("1976-01-01-00000", "1976-01-02-00000"):
+                assert (rundir /
+                        f"testcase.dart.rh.{comp}_output_priorinf_mean.{date}.nc"
+                        ).exists()
 
     def test_parse_inflation_settings(self, tmp_path):
         # Create a fake input.nml file
@@ -609,7 +984,7 @@ inf_initial                 = 1.1,                     1.2,
         rundir = tmp_path / "run"
         rundir.mkdir()
         with pytest.raises(FileNotFoundError):
-            assimilate.stage_inflation_files(str(rundir))
+            assimilate.stage_inflation_files(self._case(), "ocn", str(rundir))
 
 
 class TestCopyGeometryFileForCycle0:
@@ -781,7 +1156,7 @@ class TestRunFilterForComponent:
         return mock_case
 
     @patch('assimilate.rename_stage_files')
-    @patch('assimilate.rename_inflation_files')
+    @patch('assimilate.unstage_inflation_files')
     @patch('assimilate.rename_obs_seq_final')
     @patch('assimilate.rename_dart_logs')
     @patch('assimilate.stage_inflation_files')
@@ -797,7 +1172,7 @@ class TestRunFilterForComponent:
         self, mock_chdir, mock_exists, mock_subprocess,
         mock_get_time, mock_get_obs, mock_stage_nml, mock_check,
         mock_set_restart, mock_stage_infl, mock_rename_logs, mock_rename_obs,
-        mock_rename_infl, mock_rename_stage
+        mock_unstage_infl, mock_rename_stage
     ):
         """Test successful OCN filter run (includes backup/restore of input.nml)."""
         import tempfile, os as _os
@@ -824,7 +1199,7 @@ class TestRunFilterForComponent:
             mock_subprocess.assert_called_once()
 
     @patch('assimilate.rename_stage_files')
-    @patch('assimilate.rename_inflation_files')
+    @patch('assimilate.unstage_inflation_files')
     @patch('assimilate.rename_obs_seq_final')
     @patch('assimilate.rename_dart_logs')
     @patch('assimilate.stage_inflation_files')
@@ -840,7 +1215,7 @@ class TestRunFilterForComponent:
         self, mock_chdir, mock_exists, mock_subprocess,
         mock_get_time, mock_get_obs, mock_stage_nml, mock_check,
         mock_set_restart, mock_stage_infl, mock_rename_logs, mock_rename_obs,
-        mock_rename_infl, mock_rename_stage
+        mock_unstage_infl, mock_rename_stage
     ):
         """ATM has no input_nml_conflict — backup/restore must NOT be called."""
         mock_exists.return_value = True

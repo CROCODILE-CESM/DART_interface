@@ -14,6 +14,8 @@ For each active component the script:
     filter_input_list.txt / filter_output_list.txt.
   - Sets component-specific template file symlinks required by the model_mod.
   - Stages the correct observation sequence file.
+  - Stages the component's inflation restarts onto the fixed input_*inf_*.nc
+    names filter requires, and removes the staging links afterwards.
   - Runs the per-component DART filter executable (filter_{comp}) with MPI.
   - Renames output logs, obs_seq.final, inflation files, and stage files.
 """
@@ -416,50 +418,224 @@ def parse_inflation_settings(input_nml_path):
         'inf_initial_from_restart': get('inf_initial_from_restart', 0, False),
         'inf_sd_initial_from_restart': get('inf_sd_initial_from_restart', 0, False),
         'inf_initial': get('inf_initial', 0, 1.0),
+        'inf_sd_initial': get('inf_sd_initial', 0, 0.0),
     }
     posterior = {
         'inf_flavor': get('inf_flavor', 1, 0),
         'inf_initial_from_restart': get('inf_initial_from_restart', 1, False),
         'inf_sd_initial_from_restart': get('inf_sd_initial_from_restart', 1, False),
         'inf_initial': get('inf_initial', 1, 1.0),
+        'inf_sd_initial': get('inf_sd_initial', 1, 0.0),
     }
     return {'prior': prior, 'posterior': posterior}
 
 
-def stage_inflation_files(rundir):
+def set_nml_array_value(input_nml_path, group, var, index, value):
     """
-    Verify that inflation restart files required by input.nml are present.
-    DART expects: input_priorinf_mean.nc, input_priorinf_sd.nc,
-                  input_postinf_mean.nc,  input_postinf_sd.nc
+    Set one element of a Fortran namelist array in place.
+
+    Used to turn inf_initial_from_restart off for a bootstrap cycle.  Only the
+    named element changes; the other element and all surrounding text are
+    preserved.  Handles values continued across lines the same way
+    parse_inflation_settings does.  Raises KeyError if group/var is absent.
+    """
+    def to_fortran(v):
+        if isinstance(v, bool):
+            return '.true.' if v else '.false.'
+        return str(v)
+
+    with open(input_nml_path) as f:
+        lines = f.readlines()
+
+    current = None
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if stripped.startswith('&'):
+            current = stripped[1:].strip()
+            i += 1
+            continue
+        if stripped.startswith('/'):
+            current = None
+            i += 1
+            continue
+
+        match = re.match(rf'(\s*){re.escape(var)}\s*=\s*(.+)', lines[i]) \
+            if current == group else None
+        if match is None:
+            i += 1
+            continue
+
+        indent, raw = match.group(1), match.group(2).strip()
+        start = i
+        i += 1
+        # Consume continuation lines, mirroring parse_fortran_namelist.
+        while raw.rstrip().endswith(',') and i < len(lines):
+            nxt = lines[i].strip()
+            if nxt.startswith('/') or nxt.startswith('&') or \
+                    ('=' in nxt and not nxt.startswith("'")):
+                break
+            i += 1
+            if not nxt or nxt.startswith('!'):
+                continue
+            raw += ' ' + nxt
+
+        elements = [e.strip() for e in raw.rstrip(',').split(',')]
+        while len(elements) <= index:
+            elements.append(elements[-1])
+        elements[index] = to_fortran(value)
+        lines[start:i] = [f"{indent}{var} = {', '.join(elements)}\n"]
+
+        with open(input_nml_path, 'w') as f:
+            f.writelines(lines)
+        return
+
+    raise KeyError(f"{var} not found in &{group} of {input_nml_path}")
+
+
+# DART's inflation namelist arrays have two columns: the first is prior
+# inflation, the second posterior (DART/guide/inflation.rst).  Index into those
+# arrays is the position in _INFLATION below.  Note this is not the inflation
+# 'flavor' -- flavor is inf_flavor, the inflation scheme (0 none, 2 spatially
+# varying, 3 spatially constant, 4 RTPS, 5 enhanced), a separate axis that
+# applies to prior and posterior independently.
+_INFLATION = ("prior", "posterior")
+
+# Token filter builds inflation file names from: input_priorinf_mean.nc etc.
+_INFLATION_FILE_TOKEN = {"prior": "priorinf", "posterior": "postinf"}
+
+# The bootstrap cycle starts inflation from the case's own inf_initial /
+# inf_sd_initial, which is what those namelist variables already mean: the values
+# used when inflation is not read from a restart (adaptive_inflate_mod.f90:261).
+# Set them in user_nl_dart, or per component in user_nl_dart_{comp}.  Because
+# every later cycle reads inflation from the restart file instead, they take
+# effect on the first cycle only.
+
+
+def inflation_restart_pattern(case_name, comp, token, field):
+    """Glob pattern for the archived inflation restarts written by
+    rename_stage_files() at the end of a previous cycle.  `token` is a
+    _INFLATION_FILE_TOKEN value: 'priorinf' or 'postinf'."""
+    return f"{case_name}.dart.rh.{comp}_output_{token}_{field}.*.nc"
+
+
+def stage_inflation_files(case, comp, rundir):
+    """
+    Symlink the newest archived inflation restart for `comp` onto the fixed
+    names filter expects (input_priorinf_mean.nc etc.).
+
+    Sources are $CASE.dart.rh.{comp}_output_*inf_*.nc, written by the previous
+    cycle's rename_stage_files().  Because every component runs filter in the
+    same RUNDIR and DART hardwires the input_* names, staging per component is
+    what keeps one component's inflation from being read by another.
+
+    If prior or posterior inflation is requested from restart but no file exists,
+    this is the first assimilation for that component: inf_*_from_restart is
+    turned off for that column in the
+    staged input.nml for this cycle only, so filter initialises inflation from
+    the case's own inf_initial / inf_sd_initial and writes a restart the next
+    cycle can use.  Those namelist values therefore apply to the first cycle
+    only.  The edit is discarded when stage_dart_input_nml re-copies
+    input.nml.{comp} at the top of the next cycle.
+
+    Returns the list of staged paths.
     """
     input_nml = os.path.join(rundir, "input.nml")
     if not os.path.exists(input_nml):
         raise FileNotFoundError(f"input.nml not found in {rundir}")
 
+    case_name = case.get_value("CASE")
     settings = parse_inflation_settings(input_nml)
+    staged = []
 
-    def check(label, mean_file, sd_file):
-        missing = [f for f in [mean_file, sd_file]
-                   if not os.path.exists(os.path.join(rundir, f))]
+    for idx, inflation in enumerate(_INFLATION):
+        token = _INFLATION_FILE_TOKEN[inflation]
+        s = settings[inflation]
+        if s['inf_flavor'] <= 0:
+            continue
+        wanted = [field for field, flag in
+                  (("mean", 'inf_initial_from_restart'),
+                   ("sd", 'inf_sd_initial_from_restart'))
+                  if s[flag]]
+        if not wanted:
+            continue
+
+        # Newest wins.  YYYY-MM-DD-SSSSS sorts chronologically, so a plain
+        # lexical sort is enough whether st_archive has pruned or not.
+        found = {}
+        for field in ("mean", "sd"):
+            matches = sorted(glob.glob(os.path.join(
+                rundir, inflation_restart_pattern(case_name, comp, token, field))))
+            if matches:
+                found[field] = matches[-1]
+
+        if not found:
+            logger.warning(
+                f"{comp}: {inflation} inflation requested from restart but no "
+                f"file matches "
+                f"{inflation_restart_pattern(case_name, comp, token, '{mean,sd}')}"
+                f" in {rundir}.  Treating this as the first assimilation for "
+                f"'{comp}': starting {inflation} inflation from the case's own "
+                f"namelist values inf_initial = {s['inf_initial']}, "
+                f"inf_sd_initial = {s['inf_sd_initial']}, for this cycle only.  "
+                f"Later cycles read inflation from the restart this cycle writes."
+            )
+            # Only the from_restart flags change.  inf_initial / inf_sd_initial
+            # already mean 'the values to use when not reading a restart', so the
+            # case's own settings are what the first cycle should start from.
+            for var in ("inf_initial_from_restart", "inf_sd_initial_from_restart"):
+                set_nml_array_value(input_nml, "filter_nml", var, idx, False)
+            if s['inf_sd_initial'] <= 0:
+                logger.warning(
+                    f"{comp}: inf_sd_initial for {inflation} inflation is "
+                    f"{s['inf_sd_initial']}, so inflation will be time-constant "
+                    f"at inf_initial = {s['inf_initial']} for the whole run, not "
+                    f"just this cycle: the zero is written into "
+                    f"output_{token}_sd.nc and later cycles read their sd from "
+                    f"that file rather than from the namelist, so "
+                    f"update_inflation keeps returning early "
+                    f"(adaptive_inflate_mod.f90, inflate_sd <= 0).  Set "
+                    f"inf_sd_initial > 0 in user_nl_dart (0.6 is the usual "
+                    f"starting value) for adaptive inflation."
+                )
+            continue
+
+        missing = [f for f in wanted if f not in found]
         if missing:
             raise FileNotFoundError(
-                f"Missing {label} inflation file(s) in {rundir}: {', '.join(missing)}"
+                f"{comp}: incomplete {inflation} inflation restart set in "
+                f"{rundir}. Found {sorted(found)} but not {missing}.  Refusing "
+                f"to bootstrap because discarding a partial set would silently "
+                f"reset inflation."
             )
 
-    if settings['prior']['inf_flavor'] > 0 and settings['prior']['inf_initial_from_restart']:
-        check("prior", "input_priorinf_mean.nc", "input_priorinf_sd.nc")
-    if settings['posterior']['inf_flavor'] > 0 and settings['posterior']['inf_initial_from_restart']:
-        check("posterior", "input_postinf_mean.nc", "input_postinf_sd.nc")
+        for field in wanted:
+            dst = os.path.join(rundir, f"input_{token}_{field}.nc")
+            _make_symlink(found[field], dst)
+            staged.append(dst)
+
+    return staged
 
 
-def rename_inflation_files(rundir):
-    """Copy output inflation files to input_* names for the next cycle."""
-    for base_name in ["priorinf_mean", "priorinf_sd", "postinf_mean", "postinf_sd"]:
-        src = os.path.join(rundir, f"output_{base_name}.nc")
-        if os.path.exists(src):
-            dst = os.path.join(rundir, f"input_{base_name}.nc")
-            shutil.copy(src, dst)
-            logger.info(f"Copied {src} to {dst} for next cycle")
+def unstage_inflation_files(rundir):
+    """
+    Remove the inflation staging symlinks created by stage_inflation_files().
+
+    Runs after filter so a component whose staging was skipped cannot silently
+    read the previous component's inflation.  Only symlinks are removed; a real
+    file of the same name is left alone and reported.
+    """
+    for token in _INFLATION_FILE_TOKEN.values():
+        for field in ("mean", "sd"):
+            path = os.path.join(rundir, f"input_{token}_{field}.nc")
+            if os.path.islink(path):
+                os.remove(path)
+                logger.debug(f"Removed inflation staging symlink {path}")
+            elif os.path.exists(path):
+                logger.warning(
+                    f"{path} is a regular file, not a staging symlink; leaving it "
+                    f"in place. It will not be archived."
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -504,11 +680,15 @@ def rename_stage_files(case, comp, model_time, rundir):
     st_archive moves them to $DOUT_S_ROOT/esp/hist/.
 
     Exceptions:
-    - input_*inf*.nc are skipped: they are consumed by the next cycle.
     - output_*inf*.nc become $CASE.dart.rh.{comp}_{...}.{date}.nc: the 'rh'
       extension makes st_archive treat them as restart files, so the latest
-      set is copied (not moved) to $DOUT_S_ROOT/rest/<date>/.
-      rename_inflation_files() must run first to stage the input_* copies.
+      set is copied (not moved) to $DOUT_S_ROOT/rest/<date>/ and older sets are
+      pruned from the run directory.  The next cycle's stage_inflation_files()
+      symlinks the newest of these onto the input_* name filter reads.
+    - input_*inf*.nc are skipped.  unstage_inflation_files() removes the staging
+      symlinks before this runs, so normally there are none; the skip is
+      defensive, because the 'input' stage can legitimately produce
+      input_mean.nc / input_member_0001.nc when it is in stages_to_write.
     """
     case_name = case.get_value("CASE")
     date_str = (f"{model_time.year:04}-{model_time.month:02}"
@@ -607,8 +787,12 @@ def run_filter_for_component(case, comp, caseroot, use_mpi=True):
         case, comp, dart_info.get("pre_filter_programs", []), exeroot, rundir
     )
 
-    # Verify / stage inflation files
-    stage_inflation_files(rundir)
+    # Stage this component's inflation restarts onto the fixed input_* names
+    # If there are no inflation restarts,  state_inflation_files 
+    # changes the input.nml in the RUNDIR to inf_from_restart = .false.
+    # Note, this does not change the buildnml input.nml which is copied in 
+    # in stage_dart_input_nml(case, rundir, comp)
+    stage_inflation_files(case, comp, rundir)
 
     logger.info(f"Running DART filter_{comp} in {rundir}")
     try:
@@ -635,9 +819,12 @@ def run_filter_for_component(case, comp, caseroot, use_mpi=True):
             case, comp, dart_info.get("post_filter_programs", []), exeroot, rundir
         )
 
+        # Drop the staging symlinks before renaming, so the next component
+        # cannot inherit this component's inflation.
+        unstage_inflation_files(rundir)
+
         rename_dart_logs(case, comp, model_time, rundir)
         rename_obs_seq_final(case, comp, model_time, rundir)
-        rename_inflation_files(rundir)
         rename_stage_files(case, comp, model_time, rundir)
 
     except subprocess.CalledProcessError as e:
