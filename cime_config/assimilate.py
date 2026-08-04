@@ -681,14 +681,23 @@ def rename_stage_files(case, comp, model_time, rundir):
 
     Exceptions:
     - output_*inf*.nc become $CASE.dart.rh.{comp}_{...}.{date}.nc: the 'rh'
-      extension makes st_archive treat them as restart files, so the latest
-      set is copied (not moved) to $DOUT_S_ROOT/rest/<date>/ and older sets are
-      pruned from the run directory.  The next cycle's stage_inflation_files()
-      symlinks the newest of these onto the input_* name filter reads.
-    - input_*inf*.nc are skipped.  unstage_inflation_files() removes the staging
-      symlinks before this runs, so normally there are none; the skip is
-      defensive, because the 'input' stage can legitimately produce
-      input_mean.nc / input_member_0001.nc when it is in stages_to_write.
+      extension makes st_archive treat them as restart files, so the newest set
+      is copied (not moved) to $DOUT_S_ROOT/rest/<date>/ and left in the run
+      directory, while older sets are pruned from it (unless
+      DOUT_S_SAVE_INTERIM_RESTART_FILES).  That leaves exactly one dated set per
+      component for the next cycle's stage_inflation_files() to symlink onto the
+      input_* name filter reads.  Note output_mean / output_sd contain no 'inf'
+      and so stay history files.
+    - input_*inf*.nc are skipped.  These are stage_inflation_files()' staging
+      symlinks, and they are still present here: unstage_inflation_files() runs
+      in run_filter_for_component's finally block, i.e. after this function, so
+      that a failed filter cannot leave a stale link behind.  Renaming them
+      would rename the link, so st_archive would copy the previous cycle's
+      inflation into esp/hist/ every cycle and unstage would no longer find it
+      under the expected name.  The pattern is deliberately narrow: with 'input'
+      in stages_to_write, filter also writes input_mean.nc / input_sd.nc /
+      input_member_0001.nc, which contain no 'inf' and are correctly archived as
+      history diagnostics.
     """
     case_name = case.get_value("CASE")
     date_str = (f"{model_time.year:04}-{model_time.month:02}"
@@ -819,10 +828,6 @@ def run_filter_for_component(case, comp, caseroot, use_mpi=True):
             case, comp, dart_info.get("post_filter_programs", []), exeroot, rundir
         )
 
-        # Drop the staging symlinks before renaming, so the next component
-        # cannot inherit this component's inflation.
-        unstage_inflation_files(rundir)
-
         rename_dart_logs(case, comp, model_time, rundir)
         rename_obs_seq_final(case, comp, model_time, rundir)
         rename_stage_files(case, comp, model_time, rundir)
@@ -833,6 +838,15 @@ def run_filter_for_component(case, comp, caseroot, use_mpi=True):
         logger.error(f"stderr: {e.stderr}")
         raise
     finally:
+        # Drop the inflation staging symlinks unconditionally, so a failed
+        # filter cannot leave a stale link to this component's inflation where
+        # another component would pick it up.  This runs after
+        # rename_stage_files on the success path, which is fine: that function
+        # skips input_*inf* by design, so the links are simply left for us.
+        # What was linked is already in the log from _make_symlink, so nothing
+        # is lost for a post-mortem.
+        unstage_inflation_files(rundir)
+
         # Always restore model input.nml if it was backed up
         if dart_info["input_nml_conflict"]:
             restore_model_input_nml(rundir)

@@ -10,6 +10,7 @@ and multi-component (OCN+ICE) DA scenarios.
 
 import os
 import sys
+import subprocess
 import pytest
 from unittest.mock import Mock, patch, MagicMock, call
 from pathlib import Path
@@ -934,8 +935,11 @@ class TestStageInflationFiles:
                 settings = assimilate.parse_inflation_settings(
                     str(rundir / "input.nml"))
                 read = fake_filter(comp, cycle)
-                assimilate.unstage_inflation_files(str(rundir))
+                # Production order: renames run in the try block, unstage in the
+                # finally.  rename_stage_files must tolerate the links still
+                # being present.
                 assimilate.rename_stage_files(case, comp, model_time, str(rundir))
+                assimilate.unstage_inflation_files(str(rundir))
                 observed[(cycle, comp)] = (
                     settings['prior']['inf_initial_from_restart'],
                     read['priorinf_mean'])
@@ -1232,6 +1236,81 @@ class TestRunFilterForComponent:
         mock_backup.assert_not_called()
         mock_restore.assert_not_called()
         mock_set_restart.assert_called_once_with("/run", "atm", mock_get_time.return_value)
+
+    @patch('assimilate.rename_stage_files')
+    @patch('assimilate.rename_obs_seq_final')
+    @patch('assimilate.rename_dart_logs')
+    @patch('assimilate.stage_inflation_files')
+    @patch('assimilate.set_restart_files')
+    @patch('assimilate.check_required_files')
+    @patch('assimilate.stage_dart_input_nml')
+    @patch('assimilate.get_observations')
+    @patch('assimilate.get_model_time')
+    @patch('subprocess.run')
+    @patch('os.path.exists')
+    @patch('os.chdir')
+    def test_unstage_runs_when_filter_fails(
+        self, mock_chdir, mock_exists, mock_subprocess,
+        mock_get_time, mock_get_obs, mock_stage_nml, mock_check,
+        mock_set_restart, mock_stage_infl, mock_rename_logs, mock_rename_obs,
+        mock_rename_stage
+    ):
+        """
+        A failed filter must still drop the inflation staging symlinks, or a
+        stale link to this component's inflation is left in RUNDIR where another
+        component could pick it up.  unstage_inflation_files therefore lives in
+        the finally block, not the try.
+        """
+        mock_exists.return_value = True
+        mock_get_time.return_value = ModelTime(2001, 1, 15, 0)
+        mock_subprocess.side_effect = subprocess.CalledProcessError(
+            returncode=134, cmd="filter_atm", output="", stderr="ERROR from filter")
+        mock_case = self._make_case("/run", "/exe")
+
+        with patch('assimilate.unstage_inflation_files') as mock_unstage, \
+             patch.dict('assimilate._SET_TEMPLATE_FILES', {'atm': Mock()}):
+            with pytest.raises(subprocess.CalledProcessError):
+                assimilate.run_filter_for_component(mock_case, "atm", "/caseroot")
+
+        mock_unstage.assert_called_once_with("/run")
+        # The renames are on the success path only.
+        mock_rename_stage.assert_not_called()
+        mock_rename_obs.assert_not_called()
+
+    @patch('assimilate.rename_stage_files')
+    @patch('assimilate.rename_obs_seq_final')
+    @patch('assimilate.rename_dart_logs')
+    @patch('assimilate.stage_inflation_files')
+    @patch('assimilate.set_restart_files')
+    @patch('assimilate.check_required_files')
+    @patch('assimilate.stage_dart_input_nml')
+    @patch('assimilate.get_observations')
+    @patch('assimilate.get_model_time')
+    @patch('subprocess.run')
+    @patch('os.path.exists')
+    @patch('os.chdir')
+    def test_unstage_runs_when_post_converter_fails(
+        self, mock_chdir, mock_exists, mock_subprocess,
+        mock_get_time, mock_get_obs, mock_stage_nml, mock_check,
+        mock_set_restart, mock_stage_infl, mock_rename_logs, mock_rename_obs,
+        mock_rename_stage
+    ):
+        """Same guarantee when a post-filter converter (dart_to_cice etc.) is
+        what fails, which is also inside the try block."""
+        mock_exists.return_value = True
+        mock_get_time.return_value = ModelTime(2001, 1, 15, 0)
+        mock_subprocess.return_value = Mock(stdout="", stderr="")
+        mock_case = self._make_case("/run", "/exe")
+
+        with patch('assimilate.unstage_inflation_files') as mock_unstage, \
+             patch('assimilate.run_model_programs_for_members',
+                   side_effect=[None, RuntimeError("dart_to_cice blew up")]), \
+             patch.dict('assimilate._SET_TEMPLATE_FILES', {'ice': Mock()}):
+            with pytest.raises(RuntimeError, match="dart_to_cice"):
+                assimilate.run_filter_for_component(mock_case, "ice", "/caseroot")
+
+        mock_unstage.assert_called_once_with("/run")
+        mock_rename_stage.assert_not_called()
 
     @patch('os.path.exists')
     def test_missing_filter_executable(self, mock_exists):
