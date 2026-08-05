@@ -28,15 +28,15 @@ CIME script that generates DART namelists and configuration files during case se
   - Includes a custom Fortran namelist parser to handle user overrides
 - **Variable configuration** - Sets CESM XML variables:
   - `DATA_ASSIMILATION_SCRIPT` - Points to `assimilate.py`
-  - `NTASKS_ESP` - Sets number of tasks for DART equal to the number of tasks used for the ocean component.
+  - `NTASKS_ESP` - Sets number of tasks for DART to the largest `NTASKS` of the active DA components.
 - **File staging** - Copies sampling error correction table if needed (for ensemble sizes 3-200)
 - **Input data list** - Generates list of required observational data files
 
 For each active DA component, the script reads from the corresponding `param_templates/json/input_nml_{comp}.json` template, 
-applies any common overrides from `user_nl_dart` and any component-specific overrides from `user_nl_dart_{comp}` (e.g. `user_nl_dart_cam`, 
+applies any common overrides from `user_nl_dart` and any component-specific overrides from `user_nl_dart_{comp}` (e.g. `user_nl_dart_atm`, 
 `user_nl_dart_ocn`), and writes to `Buildconf/dartconf/input.nml.{comp}`.
 
-You can run `./preview_namelists --comp esp` to create `Buildconf/dartconf/input.nml` without running a full case setup.
+You can run `./preview_namelists --component esp` to create `Buildconf/dartconf/input.nml.{comp}` without running a full case setup.
 
 ### `cime_config/buildlib`
 CIME script that builds the DART executables and creates the DART library during `case.build`.

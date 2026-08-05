@@ -12,7 +12,7 @@
 !
 ! To override settings for a specific component only, create a file
 ! named user_nl_dart_{comp} in $CASEROOT, e.g.:
-!   user_nl_dart_cam   (atmosphere)
+!   user_nl_dart_atm   (atmosphere)
 !   user_nl_dart_ocn   (ocean)
 !   user_nl_dart_lnd   (land)
 !   user_nl_dart_ice   (sea-ice)
