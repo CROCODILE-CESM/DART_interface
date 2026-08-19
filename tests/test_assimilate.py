@@ -1098,6 +1098,149 @@ class TestCopyGeometryFileForCycle0:
         assert (rundir / "ocean_geometry.nc").exists()
 
 
+class TestGetNmlBool:
+    """Test the scalar boolean namelist reader."""
+
+    def _write(self, tmp_path, text):
+        path = tmp_path / "input.nml"
+        path.write_text(text)
+        return str(path)
+
+    def test_reads_true(self, tmp_path):
+        path = self._write(tmp_path, "&filter_nml\n  perturb_from_single_instance = .true.\n/\n")
+        assert assimilate.get_nml_bool(path, "filter_nml", "perturb_from_single_instance") is True
+
+    def test_reads_false(self, tmp_path):
+        path = self._write(tmp_path, "&filter_nml\n  perturb_from_single_instance = .false.\n/\n")
+        assert assimilate.get_nml_bool(path, "filter_nml", "perturb_from_single_instance") is False
+
+    def test_missing_var_returns_default(self, tmp_path):
+        path = self._write(tmp_path, "&filter_nml\n  inf_flavor = 0, 0\n/\n")
+        assert assimilate.get_nml_bool(path, "filter_nml", "perturb_from_single_instance") is False
+        assert assimilate.get_nml_bool(
+            path, "filter_nml", "perturb_from_single_instance", default=True) is True
+
+    def test_only_reads_named_group(self, tmp_path):
+        path = self._write(tmp_path, """
+&other_nml
+  perturb_from_single_instance = .true.
+/
+&filter_nml
+  perturb_from_single_instance = .false.
+/
+""")
+        assert assimilate.get_nml_bool(path, "filter_nml", "perturb_from_single_instance") is False
+
+
+class TestSetPerturbFromSingleInstance:
+    """Test set_perturb_from_single_instance function."""
+
+    OFF = """
+&filter_nml
+  perturb_from_single_instance = .false.
+  perturbation_amplitude = 0.2
+/
+"""
+    ON = """
+&filter_nml
+  perturb_from_single_instance = .true.
+  perturbation_amplitude = 0.2
+/
+"""
+
+    def _rundir(self, tmp_path, nml=None):
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        (rundir / "input.nml").write_text(nml if nml is not None else self.OFF)
+        return rundir
+
+    def test_perturb_on_for_cycle_0_when_user_opted_in(self, tmp_path):
+        """cycle 0 turns perturbation on only if the user already set
+        perturb_from_single_instance = .true. in user_nl_dart."""
+        rundir = self._rundir(tmp_path, nml=self.ON)
+        assimilate.set_perturb_from_single_instance(str(rundir), 0)
+        text = (rundir / "input.nml").read_text()
+        assert "perturb_from_single_instance = .true." in text
+
+    def test_no_perturb_on_cycle_0_when_user_left_off(self, tmp_path):
+        """If the user left the template default (.false.), cycle 0 is a
+        no-op -- perturbation is never turned on out of nowhere."""
+        rundir = self._rundir(tmp_path, nml=self.OFF)
+        assimilate.set_perturb_from_single_instance(str(rundir), 0)
+        text = (rundir / "input.nml").read_text()
+        assert "perturb_from_single_instance = .false." in text
+
+    def test_cycle_as_string_zero(self, tmp_path):
+        """cycle passed as the string '0' behaves the same as int 0."""
+        rundir = self._rundir(tmp_path, nml=self.ON)
+        assimilate.set_perturb_from_single_instance(str(rundir), "0")
+        text = (rundir / "input.nml").read_text()
+        assert "perturb_from_single_instance = .true." in text
+
+    def test_perturb_off_for_cycle_1_even_if_user_opted_in(self, tmp_path):
+        """Any cycle other than 0 forces perturb_from_single_instance off,
+        even though the user asked for it in user_nl_dart -- by cycle 1 the
+        instances have already diverged through assimilation."""
+        rundir = self._rundir(tmp_path, nml=self.ON)
+        assimilate.set_perturb_from_single_instance(str(rundir), 1)
+        text = (rundir / "input.nml").read_text()
+        assert "perturb_from_single_instance = .false." in text
+
+    def test_non_integer_cycle_leaves_unchanged(self, tmp_path, caplog):
+        """A non-integer cycle logs a warning and does not touch input.nml,
+        mirroring copy_geometry_file_for_cycle0's handling of the same case."""
+        import logging
+        caplog.set_level(logging.WARNING)
+        rundir = self._rundir(tmp_path, nml=self.ON)
+
+        assimilate.set_perturb_from_single_instance(str(rundir), "not_a_number")
+
+        assert "not an integer" in caplog.text.lower()
+        text = (rundir / "input.nml").read_text()
+        assert "perturb_from_single_instance = .true." in text
+
+    def test_does_not_persist_to_next_cycle(self, tmp_path):
+        """
+        The cycle-0 flip is applied to the staged copy in RUNDIR only. The
+        user's own .true. setting in user_nl_dart is what's baked into
+        Buildconf/dartconf/input.nml.{comp}, and stage_dart_input_nml
+        re-copies that at the top of every cycle -- so cycle 1's masking is
+        re-derived from the user's setting each time, not left over from
+        cycle 0's edit.
+        """
+        caseroot = tmp_path / "case"
+        confdir = caseroot / "Buildconf" / "dartconf"
+        confdir.mkdir(parents=True)
+        source = confdir / "input.nml.ocn"
+        source.write_text(self.ON)
+
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+
+        case = Mock()
+        case.get_value.side_effect = lambda key: {
+            "CASEROOT": str(caseroot)}.get(key)
+
+        # Cycle 0: staged copy is flipped on (user asked for it).
+        assimilate.stage_dart_input_nml(case, str(rundir), "ocn")
+        assimilate.set_perturb_from_single_instance(str(rundir), 0)
+        assert "perturb_from_single_instance = .true." in \
+            (rundir / "input.nml").read_text()
+
+        # The case's own template is untouched, which is what makes the flip revert.
+        assert source.read_text() == self.ON
+
+        # Cycle 1: restaging restores .true. from the (still-.true.) template,
+        # and the cycle-1 flip forces it off again explicitly.
+        assimilate.stage_dart_input_nml(case, str(rundir), "ocn")
+        restaged = (rundir / "input.nml").read_text()
+        assert "perturb_from_single_instance = .true." in restaged
+
+        assimilate.set_perturb_from_single_instance(str(rundir), 1)
+        assert "perturb_from_single_instance = .false." in \
+            (rundir / "input.nml").read_text()
+
+
 class TestGetActiveDaComponents:
     """Test get_active_da_components from dart_cesm_components."""
 
@@ -1166,6 +1309,7 @@ class TestRunFilterForComponent:
     @patch('assimilate.stage_inflation_files')
     @patch('assimilate.set_restart_files')
     @patch('assimilate.check_required_files')
+    @patch('assimilate.set_perturb_from_single_instance')
     @patch('assimilate.stage_dart_input_nml')
     @patch('assimilate.get_observations')
     @patch('assimilate.get_model_time')
@@ -1174,7 +1318,7 @@ class TestRunFilterForComponent:
     @patch('os.chdir')
     def test_ocn_filter_success(
         self, mock_chdir, mock_exists, mock_subprocess,
-        mock_get_time, mock_get_obs, mock_stage_nml, mock_check,
+        mock_get_time, mock_get_obs, mock_stage_nml, mock_set_perturb, mock_check,
         mock_set_restart, mock_stage_infl, mock_rename_logs, mock_rename_obs,
         mock_unstage_infl, mock_rename_stage
     ):
@@ -1194,7 +1338,7 @@ class TestRunFilterForComponent:
             with patch('assimilate.backup_model_input_nml') as mock_backup, \
                  patch('assimilate.restore_model_input_nml') as mock_restore, \
                  patch.dict('assimilate._SET_TEMPLATE_FILES', {'ocn': mock_template_fn}):
-                assimilate.run_filter_for_component(mock_case, "ocn", "/caseroot")
+                assimilate.run_filter_for_component(mock_case, "ocn", "/caseroot", 0)
 
             mock_backup.assert_called_once_with("/run")
             mock_restore.assert_called_once_with("/run")
@@ -1209,6 +1353,7 @@ class TestRunFilterForComponent:
     @patch('assimilate.stage_inflation_files')
     @patch('assimilate.set_restart_files')
     @patch('assimilate.check_required_files')
+    @patch('assimilate.set_perturb_from_single_instance')
     @patch('assimilate.stage_dart_input_nml')
     @patch('assimilate.get_observations')
     @patch('assimilate.get_model_time')
@@ -1217,7 +1362,7 @@ class TestRunFilterForComponent:
     @patch('os.chdir')
     def test_atm_filter_no_backup(
         self, mock_chdir, mock_exists, mock_subprocess,
-        mock_get_time, mock_get_obs, mock_stage_nml, mock_check,
+        mock_get_time, mock_get_obs, mock_stage_nml, mock_set_perturb, mock_check,
         mock_set_restart, mock_stage_infl, mock_rename_logs, mock_rename_obs,
         mock_unstage_infl, mock_rename_stage
     ):
@@ -1231,7 +1376,7 @@ class TestRunFilterForComponent:
         with patch('assimilate.backup_model_input_nml') as mock_backup, \
              patch('assimilate.restore_model_input_nml') as mock_restore, \
              patch.dict('assimilate._SET_TEMPLATE_FILES', {'atm': mock_template_fn}):
-            assimilate.run_filter_for_component(mock_case, "atm", "/caseroot")
+            assimilate.run_filter_for_component(mock_case, "atm", "/caseroot", 0)
 
         mock_backup.assert_not_called()
         mock_restore.assert_not_called()
@@ -1243,6 +1388,7 @@ class TestRunFilterForComponent:
     @patch('assimilate.stage_inflation_files')
     @patch('assimilate.set_restart_files')
     @patch('assimilate.check_required_files')
+    @patch('assimilate.set_perturb_from_single_instance')
     @patch('assimilate.stage_dart_input_nml')
     @patch('assimilate.get_observations')
     @patch('assimilate.get_model_time')
@@ -1251,7 +1397,7 @@ class TestRunFilterForComponent:
     @patch('os.chdir')
     def test_unstage_runs_when_filter_fails(
         self, mock_chdir, mock_exists, mock_subprocess,
-        mock_get_time, mock_get_obs, mock_stage_nml, mock_check,
+        mock_get_time, mock_get_obs, mock_stage_nml, mock_set_perturb, mock_check,
         mock_set_restart, mock_stage_infl, mock_rename_logs, mock_rename_obs,
         mock_rename_stage
     ):
@@ -1270,7 +1416,7 @@ class TestRunFilterForComponent:
         with patch('assimilate.unstage_inflation_files') as mock_unstage, \
              patch.dict('assimilate._SET_TEMPLATE_FILES', {'atm': Mock()}):
             with pytest.raises(subprocess.CalledProcessError):
-                assimilate.run_filter_for_component(mock_case, "atm", "/caseroot")
+                assimilate.run_filter_for_component(mock_case, "atm", "/caseroot", 0)
 
         mock_unstage.assert_called_once_with("/run")
         # The renames are on the success path only.
@@ -1283,6 +1429,7 @@ class TestRunFilterForComponent:
     @patch('assimilate.stage_inflation_files')
     @patch('assimilate.set_restart_files')
     @patch('assimilate.check_required_files')
+    @patch('assimilate.set_perturb_from_single_instance')
     @patch('assimilate.stage_dart_input_nml')
     @patch('assimilate.get_observations')
     @patch('assimilate.get_model_time')
@@ -1291,7 +1438,7 @@ class TestRunFilterForComponent:
     @patch('os.chdir')
     def test_unstage_runs_when_post_converter_fails(
         self, mock_chdir, mock_exists, mock_subprocess,
-        mock_get_time, mock_get_obs, mock_stage_nml, mock_check,
+        mock_get_time, mock_get_obs, mock_stage_nml, mock_set_perturb, mock_check,
         mock_set_restart, mock_stage_infl, mock_rename_logs, mock_rename_obs,
         mock_rename_stage
     ):
@@ -1307,7 +1454,7 @@ class TestRunFilterForComponent:
                    side_effect=[None, RuntimeError("dart_to_cice blew up")]), \
              patch.dict('assimilate._SET_TEMPLATE_FILES', {'ice': Mock()}):
             with pytest.raises(RuntimeError, match="dart_to_cice"):
-                assimilate.run_filter_for_component(mock_case, "ice", "/caseroot")
+                assimilate.run_filter_for_component(mock_case, "ice", "/caseroot", 0)
 
         mock_unstage.assert_called_once_with("/run")
         mock_rename_stage.assert_not_called()
@@ -1319,7 +1466,7 @@ class TestRunFilterForComponent:
         mock_case = self._make_case("/run", "/exe")
 
         with pytest.raises(FileNotFoundError, match="Filter executable not found"):
-            assimilate.run_filter_for_component(mock_case, "ocn", "/caseroot")
+            assimilate.run_filter_for_component(mock_case, "ocn", "/caseroot", 0)
 
 
 class TestAssimilateFunction:
@@ -1348,7 +1495,7 @@ class TestAssimilateFunction:
         assimilate.assimilate("/case/root", 1)
 
         mock_run_filter.assert_called_once_with(
-            mock_case_instance, "ocn", "/case/root", use_mpi=True
+            mock_case_instance, "ocn", "/case/root", 1, use_mpi=True
         )
 
     @patch('assimilate.Case')
@@ -1362,7 +1509,7 @@ class TestAssimilateFunction:
         assimilate.assimilate("/case/root", 1)
 
         mock_run_filter.assert_called_once_with(
-            mock_case_instance, "atm", "/case/root", use_mpi=True
+            mock_case_instance, "atm", "/case/root", 1, use_mpi=True
         )
 
     @patch('assimilate.Case')
@@ -1377,8 +1524,8 @@ class TestAssimilateFunction:
 
         assert mock_run_filter.call_count == 2
         calls = mock_run_filter.call_args_list
-        assert calls[0] == call(mock_case_instance, "ocn", "/case/root", use_mpi=False)
-        assert calls[1] == call(mock_case_instance, "ice", "/case/root", use_mpi=False)
+        assert calls[0] == call(mock_case_instance, "ocn", "/case/root", 0, use_mpi=False)
+        assert calls[1] == call(mock_case_instance, "ice", "/case/root", 0, use_mpi=False)
 
     @patch('assimilate.Case')
     @patch('assimilate.copy_geometry_file_for_cycle0')

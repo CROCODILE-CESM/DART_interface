@@ -43,4 +43,27 @@
 ! instead of 'time-adaptive' inflation when this happens.
 !
 !------------------------------------------------------------------------
+! Ensemble perturbation (tutorial / cold-start cases)
+!
+! Set perturb_from_single_instance = .true. below for a multi-instance case
+! where every instance starts from an identical restart (e.g. the
+! tutorial). assimilate.py then restricts it to cycle 0 only: cycle 0
+! perturbs instance 1's restart into the full ensemble; every cycle after
+! is forced back to .false. regardless of this setting, because by then the
+! instances have diverged through assimilation and the real, by-then-
+! diverged per-instance restarts must be used instead.
+!
+! If you leave this .false. (the default), nothing is forced on at any
+! cycle.
+!
+! perturbation_amplitude controls how large the cycle-0 perturbation
+! is.  It is ignored once perturb_from_single_instance is .false.
+!
+! WARNING: if you resubmit a job mid-experiment with this still set to
+! .true., CIME's cycle counter restarts at 0 for the new job segment, and
+! cycle 0 will perturb again, discarding the ensemble spread already built
+! up.  Set it back to .false. before resubmitting an in-progress
+! multi-cycle experiment.
+!
+!------------------------------------------------------------------------
 

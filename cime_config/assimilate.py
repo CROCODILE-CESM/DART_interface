@@ -16,6 +16,9 @@ For each active component the script:
   - Stages the correct observation sequence file.
   - Stages the component's inflation restarts onto the fixed input_*inf_*.nc
     names filter requires, and removes the staging links afterwards.
+  - If perturb_from_single_instance, only set for cycle 0, so a fresh
+    multi-instance case (every instance bit-identical) gets perturbed into
+    an ensemble; off for every cycle after.
   - Runs the per-component DART filter executable (filter_{comp}) with MPI.
   - Renames output logs, obs_seq.final, inflation files, and stage files.
 """
@@ -493,6 +496,85 @@ def set_nml_array_value(input_nml_path, group, var, index, value):
     raise KeyError(f"{var} not found in &{group} of {input_nml_path}")
 
 
+def get_nml_bool(input_nml_path, group, var, default=False):
+    """
+    Read a scalar boolean namelist value.
+
+    Used to check what the user set perturb_from_single_instance to in
+    user_nl_dart, before deciding whether cycle 0 should turn it on. Returns
+    `default` if the group or variable is absent. Assumes the value is on a
+    single line, true for every scalar filter_nml value the template
+    generator writes; unlike set_nml_array_value this does not handle
+    continuation lines, since there is nothing to continue for a scalar.
+    """
+    with open(input_nml_path) as f:
+        lines = f.readlines()
+
+    current = None
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('&'):
+            current = stripped[1:].strip()
+            continue
+        if stripped.startswith('/'):
+            current = None
+            continue
+        if current != group:
+            continue
+        match = re.match(rf'\s*{re.escape(var)}\s*=\s*(.+)', line)
+        if match:
+            value = match.group(1).strip().rstrip(',').strip()
+            return value.lower() in ('.true.', 't')
+
+    return default
+
+
+def set_perturb_from_single_instance(rundir, cycle):
+    """
+    Restrict filter_nml:perturb_from_single_instance to cycle 0.
+
+    perturb_from_single_instance only ever turns on if the user has already
+    set it to .true. in user_nl_dart (e.g. for a tutorial multi-instance
+    case where every instance starts from an identical restart). When it
+    does, it applies on cycle 0 only: from cycle 1 onward the instances have
+    diverged through assimilation, so it is forced back to .false.
+    regardless of the user's setting. If the user left it .false. (the
+    template default), this is a no-op on every cycle.
+
+    The edit lands in the input.nml this cycle already staged via
+    stage_dart_input_nml and does not persist: that file is recopied from
+    Buildconf/dartconf at the top of every cycle, so the user's original
+    setting -- not this cycle's masked value -- is what gets read again next
+    cycle.
+
+    Keys off `cycle`, not file presence -- unlike the inflation bootstrap
+    (see stage_inflation_files), this does not guard against a job
+    resubmission also starting at cycle 0. A resubmit mid-experiment with
+    perturb_from_single_instance left .true. in user_nl_dart will re-perturb
+    from instance 1, discarding accumulated ensemble spread. See the caveat
+    in user_nl_dart and docs/assimilate.md.
+    """
+    try:
+        cycle_int = int(cycle)
+    except (ValueError, TypeError):
+        logger.warning(
+            f"Cycle '{cycle}' is not an integer, "
+            "leaving perturb_from_single_instance unchanged"
+        )
+        return
+    input_nml = os.path.join(rundir, "input.nml")
+    user_wants_perturb = get_nml_bool(
+        input_nml, "filter_nml", "perturb_from_single_instance"
+    )
+    perturb = user_wants_perturb and cycle_int == 0
+    set_nml_array_value(
+        input_nml, "filter_nml", "perturb_from_single_instance", 0, perturb
+    )
+    logger.info(
+        f"Set perturb_from_single_instance = {perturb} for cycle {cycle_int}"
+    )
+
+
 # DART's inflation namelist arrays have two columns: the first is prior
 # inflation, the second posterior (DART/guide/inflation.rst).  Index into those
 # arrays is the position in _INFLATION below.  Note this is not the inflation
@@ -755,7 +837,7 @@ def copy_geometry_file_for_cycle0(case, rundir, cycle):
 # Per-component filter run
 # ---------------------------------------------------------------------------
 
-def run_filter_for_component(case, comp, caseroot, use_mpi=True):
+def run_filter_for_component(case, comp, caseroot, cycle, use_mpi=True):
     """
     Run the DART filter for a single DA component.
 
@@ -781,6 +863,10 @@ def run_filter_for_component(case, comp, caseroot, use_mpi=True):
 
     # Stage per-component DART input.nml (input.nml.{comp} -> input.nml)
     stage_dart_input_nml(case, rundir, comp)
+
+    # If perturb_from_single_instance=.true. set true for cycle 0 only (tutorial
+    # multi-instance cases start bit-identical); off for every later cycle.
+    set_perturb_from_single_instance(rundir, cycle)
 
     # Verify required files
     check_required_files(rundir)
@@ -881,7 +967,7 @@ def assimilate(caseroot, cycle, rundir=None, use_mpi=True):
 
         for comp in active_comps:
             logger.info(f"=== Starting DA for component: {comp} ===")
-            run_filter_for_component(case, comp, caseroot, use_mpi=use_mpi)
+            run_filter_for_component(case, comp, caseroot, cycle, use_mpi=use_mpi)
             logger.info(f"=== Finished DA for component: {comp} ===")
 
 

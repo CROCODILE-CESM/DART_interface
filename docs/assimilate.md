@@ -254,8 +254,62 @@ reported.
 #### `set_nml_array_value(input_nml_path, group, var, index, value)`
 Sets one element of a Fortran namelist array in place, preserving the other
 element and all surrounding text, and handling values continued across lines.
-Used by the bootstrap to flip a single `inf_*_from_restart` column.  Raises
-`KeyError` if the group or variable is absent.
+Used by the bootstrap to flip a single `inf_*_from_restart` column, and by
+`set_perturb_from_single_instance` below.  Raises `KeyError` if the group or
+variable is absent.
+
+#### `get_nml_bool(input_nml_path, group, var, default=False)`
+Reads a scalar (non-array) boolean namelist value back out, returning
+`default` if the group or variable is absent. Used by
+`set_perturb_from_single_instance` below to check what the user set
+`perturb_from_single_instance` to before deciding whether cycle 0 should
+turn it on. Assumes the value is on a single line, unlike
+`set_nml_array_value`, which has to handle array values continued across
+lines.
+
+---
+
+### Ensemble Perturbation (cycle 0)
+
+A tutorial multi-instance case starts every instance from an identical
+restart, so the ensemble has no spread until something perturbs it. DART's
+`filter_nml:perturb_from_single_instance` does this: when `.true.`, filter
+reads only the first instance's restart and internally perturbs it into a
+full ensemble, rather than reading all N per-instance restarts. No change is
+needed to how `filter_input_list.txt` is built (`set_restart_files`) --
+filter simply reads fewer lines of the same list
+(`ninput_files = 1` in `filter_mod.f90` when `perturb_from_single_instance`
+is set).
+
+#### `set_perturb_from_single_instance(rundir, cycle)`
+Called from `run_filter_for_component` right after `stage_dart_input_nml`.
+Only ever turns perturbation on if the user already set
+`filter_nml:perturb_from_single_instance = .true.` in `user_nl_dart`
+(`get_nml_bool` reads that setting back from the just-staged `input.nml`
+before deciding); it does not turn the flag on out of nowhere. Given the
+user asked for it, the setting is then restricted to `cycle == 0`: `.true.`
+on cycle 0, forced back to `.false.` on every cycle after via
+`set_nml_array_value`, regardless of the user's setting. If the user left
+it `.false.` (the template default), this is a no-op every cycle. Like the
+inflation bootstrap, the edit lands in the `input.nml` already staged into
+`RUNDIR` this cycle and does not persist: `stage_dart_input_nml` recopies
+`input.nml.{comp}` from `Buildconf/dartconf` at the top of the next cycle,
+so the user's original setting -- not this cycle's masked value -- is what
+gets read again next cycle.
+
+**This deliberately keys off `cycle`, not file presence**, unlike
+`stage_inflation_files`. `cycle` counts within one job submission and is 0
+at the start of every submission (see "First assimilation" above), so a job
+resubmitted mid-experiment with `perturb_from_single_instance` still `.true.`
+in `user_nl_dart` will hit `cycle == 0` again and re-perturb from instance 1,
+discarding whatever ensemble spread assimilation had already built up. This
+is the same ambiguity noted for `copy_geometry_file_for_cycle0` below;
+`user_nl_dart` carries the corresponding warning to turn the setting back
+off before resubmitting an in-progress experiment.
+
+A non-integer `cycle` logs a warning and leaves `perturb_from_single_instance`
+unchanged, mirroring `copy_geometry_file_for_cycle0`'s handling of the same
+case.
 
 ---
 
