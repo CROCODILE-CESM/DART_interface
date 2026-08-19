@@ -309,6 +309,11 @@ def get_observations(case, comp, model_time, rundir):
     """
     Symlink the correct obs_seq file for the given component and model time
     into rundir as obs_seq.out.
+
+    Returns True if an observation sequence was staged, False if none exists
+    for this component/date. On False, any obs_seq.out already in rundir
+    (e.g. a symlink left over from a previous cycle) is removed so it can't
+    be mistaken for this cycle's observations.
     """
     date_str = f"{model_time.year:04}{model_time.month:02}{model_time.day:02}"
     obs_seq_pattern = f"obs_seq.0Z.{date_str}"
@@ -326,15 +331,18 @@ def get_observations(case, comp, model_time, rundir):
                 if obs_seq_pattern in obs_file:
                     obs_files.append(obs_file)
 
+    dest = os.path.join(rundir, "obs_seq.out")
     if not obs_files:
         logger.warning(f"No observation sequence found for {comp} on {date_str}")
-        return
+        if os.path.exists(dest) or os.path.islink(dest):
+            os.remove(dest)
+        return False
 
-    dest = os.path.join(rundir, "obs_seq.out")
     if os.path.exists(dest):
         os.remove(dest)
     os.symlink(obs_files[0], dest)
     logger.info(f"Staged observation file: {obs_files[0]} -> {dest}")
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -854,8 +862,15 @@ def run_filter_for_component(case, comp, caseroot, cycle, use_mpi=True):
     os.chdir(rundir)
     model_time = get_model_time(case)
 
-    # Stage observations for this component
-    get_observations(case, comp, model_time, rundir)
+    # Stage observations for this component; if there are none for this
+    # window, skip every remaining setup step and don't run filter.
+    if not get_observations(case, comp, model_time, rundir):
+        logger.info(
+            f"No observations for component '{comp}' on "
+            f"{model_time.year:04}-{model_time.month:02}-{model_time.day:02}; "
+            f"skipping filter_{comp} for this cycle."
+        )
+        return False
 
     # MOM6 name-clash: back up model input.nml before DART writes its own
     if dart_info["input_nml_conflict"]:
@@ -937,6 +952,8 @@ def run_filter_for_component(case, comp, caseroot, cycle, use_mpi=True):
         if dart_info["input_nml_conflict"]:
             restore_model_input_nml(rundir)
 
+    return True
+
 
 # ---------------------------------------------------------------------------
 # Public entry point
@@ -967,8 +984,11 @@ def assimilate(caseroot, cycle, rundir=None, use_mpi=True):
 
         for comp in active_comps:
             logger.info(f"=== Starting DA for component: {comp} ===")
-            run_filter_for_component(case, comp, caseroot, cycle, use_mpi=use_mpi)
-            logger.info(f"=== Finished DA for component: {comp} ===")
+            ran = run_filter_for_component(case, comp, caseroot, cycle, use_mpi=use_mpi)
+            if ran:
+                logger.info(f"=== Finished DA for component: {comp} ===")
+            else:
+                logger.info(f"=== Skipped DA for component: {comp} (no observations) ===")
 
 
 def main():

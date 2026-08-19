@@ -24,7 +24,9 @@ the file staging required before and after the run.
 
 The order of operations for each component is:
 
-1. Stage the observation sequence file (`obs_seq.out`)
+1. Stage the observation sequence file (`obs_seq.out`). If no observation
+   sequence exists for this component's window, all remaining steps below
+   are skipped and `filter_{comp}` is not run this cycle.
 2. Back up `input.nml` if there is a name clash with the model (MOM6 only)
 3. Stage the per-component DART `input.nml.{comp}` as `input.nml`
 4. Check required files are present (`input.nml`, `obs_seq.out`)
@@ -171,7 +173,13 @@ Called in a `finally` block so restoration happens even if filter fails.
 Finds the correct observation sequence file for the component and model date by
 scanning `Buildconf/dart.input_data_list` for lines tagged `{comp}_obs_seq`
 matching the date pattern `obs_seq.0Z.{YYYYMMDD}`.  Symlinks the file into
-`rundir` as `obs_seq.out`.
+`rundir` as `obs_seq.out` and returns `True`.
+
+Returns `False` if no observation sequence matches this component/date (a
+window with no observations is expected to happen sometimes). In that case
+any `obs_seq.out` already in `rundir` -- e.g. a symlink left over from the
+previous cycle -- is removed, so a stale file can never be mistaken for this
+cycle's observations.
 
 ---
 
@@ -370,10 +378,18 @@ Orchestrates all of the above steps for a single component.  Runs
 `$EXEROOT/esp/filter_{comp}` using the MPI run command from the case
 (`MPI_RUN_COMMAND`) and number of tasks (`NTASKS_ESP`).
 
-Filter and everything after it run inside a `try`.  A non-zero return code
-raises `subprocess.CalledProcessError` after logging filter's stdout and stderr,
-which aborts the whole component loop — no later component runs.  The `finally`
-block always runs `unstage_inflation_files` and, for MOM6, `restore_model_input_nml`.
+Stages observations first.  If `get_observations` returns `False` (no
+observation sequence for this component's window), every remaining step --
+including `check_required_files`, inflation staging, and running filter --
+is skipped and the function returns `False` immediately.  Otherwise, filter
+and everything after it run inside a `try`, and the function returns `True`
+on success.  A non-zero return code raises `subprocess.CalledProcessError`
+after logging filter's stdout and stderr, which aborts the whole component
+loop — no later component runs.  The `finally` block always runs
+`unstage_inflation_files` and, for MOM6, `restore_model_input_nml` -- but
+only once observations were staged and the rest of the setup ran; it does
+not run on the no-observations early return, since nothing was staged or
+backed up yet.
 
 ---
 
@@ -381,7 +397,8 @@ block always runs `unstage_inflation_files` and, for MOM6, `restore_model_input_
 
 #### `assimilate(caseroot, cycle, rundir=None, use_mpi=True)`
 Main entry point called by CIME.  Iterates over active components and calls
-`run_filter_for_component` for each.  Also calls
+`run_filter_for_component` for each, logging whether that component's filter
+ran or was skipped for lack of observations this cycle.  Also calls
 `copy_geometry_file_for_cycle0` before the component loop.
 
 #### `main()`

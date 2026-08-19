@@ -1286,6 +1286,83 @@ class TestGetActiveDaComponents:
         assert get_active_da_components(case) == []
 
 
+class TestGetObservations:
+    """Test get_observations function."""
+
+    def _make_case(self, caseroot):
+        mock_case = Mock()
+        mock_case.get_value.return_value = str(caseroot)
+        return mock_case
+
+    def _write_input_data_list(self, caseroot, lines):
+        buildconf = Path(caseroot) / "Buildconf"
+        buildconf.mkdir(parents=True, exist_ok=True)
+        with open(buildconf / "dart.input_data_list", "w") as f:
+            f.write("\n".join(lines) + "\n")
+
+    def test_obs_file_found(self, tmp_path):
+        """Matching obs_seq file is symlinked to obs_seq.out and True is returned."""
+        caseroot = tmp_path / "case"
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        obs_file = tmp_path / "obs_seq.0Z.20010115"
+        obs_file.write_text("obs data")
+        self._write_input_data_list(caseroot, [f"atm_obs_seq01 = {obs_file}"])
+
+        mock_case = self._make_case(caseroot)
+        model_time = ModelTime(2001, 1, 15, 0)
+
+        result = assimilate.get_observations(mock_case, "atm", model_time, str(rundir))
+
+        assert result is True
+        dest = rundir / "obs_seq.out"
+        assert dest.is_symlink()
+        assert os.path.realpath(dest) == os.path.realpath(obs_file)
+
+    def test_no_obs_file_found(self, tmp_path, caplog):
+        """No matching obs file and nothing already staged: returns False and
+        logs a warning."""
+        import logging
+        caplog.set_level(logging.WARNING)
+
+        caseroot = tmp_path / "case"
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        self._write_input_data_list(caseroot, [])
+
+        mock_case = self._make_case(caseroot)
+        model_time = ModelTime(2001, 1, 15, 0)
+
+        result = assimilate.get_observations(mock_case, "atm", model_time, str(rundir))
+
+        assert result is False
+        assert not (rundir / "obs_seq.out").exists()
+        assert "no observation sequence found" in caplog.text.lower()
+
+    def test_no_obs_file_found_removes_stale_file(self, tmp_path):
+        """A stale obs_seq.out symlink left over from a previous cycle must be
+        removed when no obs file matches this cycle's date, so it can't be
+        mistaken for this cycle's observations."""
+        caseroot = tmp_path / "case"
+        rundir = tmp_path / "run"
+        rundir.mkdir()
+        self._write_input_data_list(caseroot, [])
+
+        stale_file = tmp_path / "obs_seq.0Z.20010114"
+        stale_file.write_text("stale obs data")
+        dest = rundir / "obs_seq.out"
+        os.symlink(stale_file, dest)
+
+        mock_case = self._make_case(caseroot)
+        model_time = ModelTime(2001, 1, 15, 0)
+
+        result = assimilate.get_observations(mock_case, "atm", model_time, str(rundir))
+
+        assert result is False
+        assert not dest.exists()
+        assert not dest.is_symlink()
+
+
 class TestRunFilterForComponent:
     """Test run_filter_for_component function."""
 
@@ -1468,6 +1545,49 @@ class TestRunFilterForComponent:
         with pytest.raises(FileNotFoundError, match="Filter executable not found"):
             assimilate.run_filter_for_component(mock_case, "ocn", "/caseroot", 0)
 
+    @patch('assimilate.rename_stage_files')
+    @patch('assimilate.unstage_inflation_files')
+    @patch('assimilate.rename_obs_seq_final')
+    @patch('assimilate.rename_dart_logs')
+    @patch('assimilate.stage_inflation_files')
+    @patch('assimilate.set_restart_files')
+    @patch('assimilate.check_required_files')
+    @patch('assimilate.set_perturb_from_single_instance')
+    @patch('assimilate.stage_dart_input_nml')
+    @patch('assimilate.backup_model_input_nml')
+    @patch('assimilate.get_observations')
+    @patch('assimilate.get_model_time')
+    @patch('subprocess.run')
+    @patch('os.path.exists')
+    @patch('os.chdir')
+    def test_skips_when_no_observations(
+        self, mock_chdir, mock_exists, mock_subprocess,
+        mock_get_time, mock_get_obs, mock_backup, mock_stage_nml, mock_set_perturb,
+        mock_check, mock_set_restart, mock_stage_infl, mock_rename_logs,
+        mock_rename_obs, mock_unstage_infl, mock_rename_stage
+    ):
+        """No observations for this component's window (ocn, which does have
+        an input_nml_conflict): every remaining setup step and filter itself
+        must be skipped, and the function must report that via its return
+        value."""
+        mock_exists.return_value = True
+        mock_get_time.return_value = ModelTime(2001, 1, 15, 0)
+        mock_get_obs.return_value = False
+        mock_case = self._make_case("/run", "/exe")
+
+        result = assimilate.run_filter_for_component(mock_case, "ocn", "/caseroot", 0)
+
+        assert result is False
+        mock_backup.assert_not_called()
+        mock_stage_nml.assert_not_called()
+        mock_set_perturb.assert_not_called()
+        mock_check.assert_not_called()
+        mock_set_restart.assert_not_called()
+        mock_stage_infl.assert_not_called()
+        mock_subprocess.assert_not_called()
+        mock_unstage_infl.assert_not_called()
+        mock_rename_stage.assert_not_called()
+
 
 class TestAssimilateFunction:
     """Test the assimilate() entry point."""
@@ -1537,6 +1657,31 @@ class TestAssimilateFunction:
 
         with pytest.raises(RuntimeError, match="no DATA_ASSIMILATION"):
             assimilate.assimilate("/case/root", 1)
+
+    @patch('assimilate.Case')
+    @patch('assimilate.copy_geometry_file_for_cycle0')
+    @patch('assimilate.run_filter_for_component')
+    def test_skip_one_component_does_not_abort_others(
+        self, mock_run_filter, mock_geom, mock_Case, caplog
+    ):
+        """A no-observations skip (False) for one component must not stop
+        run_filter_for_component from being called for the next active one,
+        and the log should distinguish skipped from finished components."""
+        import logging
+        caplog.set_level(logging.INFO)
+
+        mock_case_instance = self._make_case({"ocn", "ice"})
+        mock_Case.return_value.__enter__.return_value = mock_case_instance
+        mock_run_filter.side_effect = [False, True]
+
+        assimilate.assimilate("/case/root", 0, use_mpi=False)
+
+        assert mock_run_filter.call_count == 2
+        calls = mock_run_filter.call_args_list
+        assert calls[0] == call(mock_case_instance, "ocn", "/case/root", 0, use_mpi=False)
+        assert calls[1] == call(mock_case_instance, "ice", "/case/root", 0, use_mpi=False)
+        assert "skipped da for component: ocn" in caplog.text.lower()
+        assert "finished da for component: ice" in caplog.text.lower()
 
 
 class TestMain:
