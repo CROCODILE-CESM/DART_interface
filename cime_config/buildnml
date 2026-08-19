@@ -50,10 +50,26 @@ def buildnml(case, caseroot, compname):
     calendar = case.get_value("CALENDAR")
     buildnml_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Active DA components derived from the component registry
+    # The model calendar is fixed at build time (changing it requires a
+    # rebuild), so check it unconditionally, before the active-components
+    # early exit below -- otherwise a bad calendar could go undetected through
+    # an entire DA-off spin-up phase and only surface once DA is turned on.
+    expect(
+        calendar == "GREGORIAN",
+        "When DART is active, the model calendar must be GREGORIAN.",
+    )
+
+    # Active DA components derived from the component registry.
+    # No active components (e.g. spin-up, or DA temporarily turned off) is a
+    # valid state here -- there's nothing to (re)generate namelists for, so
+    # return immediately. The build-time guard in buildlib is what requires
+    # at least one component to be enabled to build a case in the first place.
     active_comps = get_active_da_components(case)
-    expect(len(active_comps) > 0,
-           "No DATA_ASSIMILATION_* flags are True. At least one component must have DA enabled.")
+    if not active_comps:
+        logger.info(
+            "No DATA_ASSIMILATION_* flags are True; skipping DART namelist generation."
+        )
+        return
 
     # Ensemble size: all active DA components must have the same NINST.
     ninst_values = {comp: int(case.get_value(DART_COMPONENTS[comp]["ninst_var"]))
@@ -71,20 +87,6 @@ def buildnml(case, caseroot, compname):
     # Local buildnml function definitions:
     ###############################################################################
     
-    def consistency_checks():
-        expect(
-            calendar == "GREGORIAN",
-            "When DART is active, the model calendar must be GREGORIAN.",
-        )
-        #if data_assimilation["ocn"] is True:
-        #    run_startdate = case.get_value("RUN_STARTDATE")
-        #    run_startyear = run_startdate[:4] 
-        #    expect(
-        #        2005 <= int(run_startyear) <= 2016, # todo: instead of startdate, check out enddate
-        #        "When ocean data assimilation is turned on, model date must be between 2005 and 2016 "
-        #        "to ensure availability of obs files."
-        #    )
-
     def gen_DART_input_nml():
         tasks_per_node = case.get_value("MAX_TASKS_PER_NODE")
 
@@ -278,12 +280,21 @@ def buildnml(case, caseroot, compname):
 
         assim_script = os.path.join(buildnml_dir, "assimilate.py")
         case.set_value("DATA_ASSIMILATION_SCRIPT", assim_script)
-        # NTASKS_ESP is set to the maximum task count over all active DA components
-        max_ntasks = max(
-            int(case.get_value(DART_COMPONENTS[comp]["ntasks_var"]))
-            for comp in active_comps
-        )
-        case.set_value("NTASKS_ESP", max_ntasks)
+
+        # ESP has no config_pes.xml entry, so CIME defaults NTASKS_ESP to 1.
+        # Set it once -- the first time buildnml runs with active DA
+        # components -- to the largest NTASKS_{comp} across those components,
+        # so it reflects the actual model PE layout. After that, leave it
+        # alone: buildnml reruns on every case.submit, and env_mach_pes.xml is
+        # locked after case.setup, so recomputing NTASKS_ESP from whichever
+        # components happen to be active would trip CIME's locked-file check
+        # every time DATA_ASSIMILATION_* flags are toggled between submits.
+        if int(case.get_value("NTASKS_ESP")) == 1:
+            max_ntasks = max(
+                int(case.get_value(DART_COMPONENTS[comp]["ntasks_var"]))
+                for comp in active_comps
+            )
+            case.set_value("NTASKS_ESP", max_ntasks)
 
     def stage_sampling_error_correction(input_nml):
         """If requested, stage sampling error correction file."""
@@ -319,9 +330,6 @@ def buildnml(case, caseroot, compname):
 
     # Call local buildnml function definitions:
     ###############################################################################
-
-    # few consistency checks
-    consistency_checks()
 
     # generate DART_input_nml
     input_nml = gen_DART_input_nml()

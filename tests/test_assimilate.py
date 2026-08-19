@@ -1650,13 +1650,20 @@ class TestAssimilateFunction:
     @patch('assimilate.Case')
     @patch('assimilate.copy_geometry_file_for_cycle0')
     @patch('assimilate.run_filter_for_component')
-    def test_no_active_components_raises(self, mock_run_filter, mock_geom, mock_Case):
-        """RuntimeError raised when no DA components are active."""
+    def test_no_active_components_skips(self, mock_run_filter, mock_geom, mock_Case, caplog):
+        """No DA components active: assimilate() logs and returns without
+        raising, e.g. for a spin-up cycle or DA temporarily turned off."""
+        import logging
+        caplog.set_level(logging.INFO)
+
         mock_case_instance = self._make_case(set())
         mock_Case.return_value.__enter__.return_value = mock_case_instance
 
-        with pytest.raises(RuntimeError, match="no DATA_ASSIMILATION"):
-            assimilate.assimilate("/case/root", 1)
+        assimilate.assimilate("/case/root", 1)
+
+        mock_geom.assert_not_called()
+        mock_run_filter.assert_not_called()
+        assert "no data_assimilation" in caplog.text.lower()
 
     @patch('assimilate.Case')
     @patch('assimilate.copy_geometry_file_for_cycle0')

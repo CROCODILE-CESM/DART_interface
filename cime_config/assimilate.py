@@ -973,11 +973,11 @@ def assimilate(caseroot, cycle, rundir=None, use_mpi=True):
             rundir = case.get_value("RUNDIR")
 
         active_comps = get_active_da_components(case)
-        # HK @todo: user may want to run some cycles with no DA, e.g. spin up?
         if not active_comps:
-            raise RuntimeError(
-                "assimilate called but no DATA_ASSIMILATION_* flags are True."
+            logger.info(
+                "No DATA_ASSIMILATION_* flags are True; skipping DA for this cycle."
             )
+            return
 
         # MOM6 cycle-0 geometry file must be copied before filter runs
         copy_geometry_file_for_cycle0(case, rundir, cycle)

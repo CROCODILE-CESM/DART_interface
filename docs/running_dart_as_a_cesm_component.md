@@ -122,8 +122,13 @@ calendar is anything else.
 
 `DATA_ASSIMILATION_OCN=TRUE`: turns on assimilation for the ocean. Set
 `DATA_ASSIMILATION_ATM`, `DATA_ASSIMILATION_LND` or `DATA_ASSIMILATION_ICE` to `TRUE` for
-the other components. At least one of these must be `TRUE`, and all components with DA
-enabled must have the same `NINST` (the same ensemble size).
+the other components. All components with DA enabled must have the same `NINST` (the same
+ensemble size).
+
+At least one of these must be `TRUE` when you build the case (`./case.build` builds
+`filter` and friends only for the components you have turned on). Once the case is built,
+you can set all four to `FALSE` to run cycles with DA turned off entirely -- see
+[Running without DA (spin-up)](#running-without-da-spin-up).
 
 `RUN_STARTDATE`: the start date of the run.
 
@@ -132,11 +137,12 @@ Start date is important, as this is used to match observations to model output. 
 ```
 
 `./preview_namelists --component esp` runs the DART `buildnml` on its own. Do this
-**before** `./case.build`, because `buildnml` sets `NTASKS_ESP` (the number of tasks
-DART runs `filter` on) to the largest `NTASKS` of the active DA components. `NTASKS_ESP`
-lives in `env_mach_pes.xml`, which CESM locks when you run `./case.setup`. Running
-`preview_namelists` now, followed by `./case.setup --reset`, gets `NTASKS_ESP` set and
-`env_mach_pes.xml` re-locked while there is nothing built yet.
+**before** `./case.build`, because the first time `buildnml` runs with at least one active
+DA component, it sets `NTASKS_ESP` (the number of tasks DART runs `filter` on) to the
+largest `NTASKS` of the active DA components. `NTASKS_ESP` lives in `env_mach_pes.xml`,
+which CESM locks when you run `./case.setup`. Running `preview_namelists` now, followed by
+`./case.setup --reset`, gets `NTASKS_ESP` set and `env_mach_pes.xml` re-locked while there
+is nothing built yet.
 
 ```{warning}
 If you skip `preview_namelists`, `NTASKS_ESP` is instead changed part way through
@@ -144,6 +150,16 @@ If you skip `preview_namelists`, `NTASKS_ESP` is instead changed part way throug
 longer matches the locked copy, so `./case.submit` refuses to run and tells you to run
 `./case.setup --reset`.  `./case.setup --reset` sets `BUILD_COMPLETE=FALSE`, so you then
 have to build the whole case a second time.
+```
+
+```{note}
+`NTASKS_ESP` is only ever set by `buildnml` while it is still at CESM's default value of
+`1` -- i.e. the very first time. Once it has been set, `buildnml` leaves it alone, even
+though it reruns on every `./case.submit`. This means you only need the
+`preview_namelists` / `case.setup --reset` dance above once, right after your first
+`case.setup`. Toggling `DATA_ASSIMILATION_*` flags later, to change which components are
+assimilated or to turn DA off entirely, does **not** change `NTASKS_ESP` and does **not**
+require repeating this step.
 ```
 
 `./case.setup --reset` picks up the xml changes above and re-locks `env_mach_pes.xml`.
@@ -337,6 +353,29 @@ Once the first inflation file exists, `inf_initial_from_restart` and
 inflation restart and read back on every subsequent cycle, so inflation stays fixed at
 `inf_initial` for the whole run, not just the first cycle. `0.6` is a common starting
 value. 
+```
+
+### Running without DA (spin-up)
+
+You may want to run some cycles without assimilating anything -- for example a spin-up
+period before starting DA, or to pause assimilation partway through an experiment. To do
+this, set all four `DATA_ASSIMILATION_*` flags to `FALSE`:
+
+```
+./xmlchange DATA_ASSIMILATION_OCN=FALSE
+```
+
+With no active DA components, `buildnml` skips namelist generation for DART and
+`assimilate.py` logs that it is skipping DA and returns, so `./case.submit` runs the model
+forward without calling `filter` for any component. Turn one or more flags back on to
+resume assimilation on a later cycle; no rebuild or `case.setup --reset` is needed either
+way, since `NTASKS_ESP` is fixed at build time (see the note above).
+
+```{note}
+You must still build the case with at least one `DATA_ASSIMILATION_*` flag `TRUE` --
+`./case.build` requires at least one active component so that the corresponding
+`filter_{comp}` executable exists. Turning all flags off only skips assimilation at run
+time; it does not change what was built.
 ```
 
 ## Run the case
