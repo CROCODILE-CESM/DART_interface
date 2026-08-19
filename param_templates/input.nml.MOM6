@@ -84,6 +84,7 @@
   single_file_out = .FALSE.
   perturb_from_single_instance = .FALSE.
   perturbation_amplitude = 0.2
+  perturbation_method = 'model'
   compute_posterior = .TRUE.
   stages_to_write = "output    ", "null      ", "null      ", "null      ", "null      ", "null      "
   input_state_files = ''
@@ -193,6 +194,12 @@
                           'h', 'QTY_LAYER_THICKNESS', 'NA', 'NA', 'UPDATE',
   layer_name = 'Layer'
   use_pseudo_depth = .FALSE.
+  reference_year = 1
+  reference_month = 1
+  reference_day = 1
+  reference_hour = 0
+  reference_minute = 0
+  reference_second = 0
 /
 
 &quad_interpolate_nml

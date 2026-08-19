@@ -239,6 +239,9 @@
       "perturbation_amplitude": {
          "values": 0.2
       },
+      "perturbation_method": {
+         "values": "model"
+      },
       "silence": {
          "values": false
       },
@@ -361,6 +364,24 @@
       },
       "ocean_geometry": {
          "values": "ocean_geometry.nc"
+      },
+      "reference_day": {
+         "values": 1
+      },
+      "reference_hour": {
+         "values": 0
+      },
+      "reference_minute": {
+         "values": 0
+      },
+      "reference_month": {
+         "values": 1
+      },
+      "reference_second": {
+         "values": 0
+      },
+      "reference_year": {
+         "values": 1
       },
       "static_file": {
          "values": "mom6.static.nc"

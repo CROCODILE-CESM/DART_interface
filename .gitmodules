@@ -2,5 +2,5 @@
 	path = DART
 	url = https://github.com/NCAR/DART.git
 	fxDONOTUSEurl = https://github.com/NCAR/DART.git
-    	fxtag = v11.24.0
+    	fxtag = v11.25.1
     	fxrequired = AlwaysRequired

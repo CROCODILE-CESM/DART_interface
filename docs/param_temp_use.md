@@ -20,6 +20,8 @@ Put this makefile in the `DART_interface/param_templates/` directory as `Makefil
 
 ### 2. Extract default namelists from DART source
 
+You will need fparser2 installed in your python environment.   
+
 Create an `input.nml` from the DART source code contained in `Makefile.$MODEL.*`, e.g. for MOM6:
 
 ```bash
