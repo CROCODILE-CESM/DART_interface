@@ -47,22 +47,22 @@
   <!-- C Regional compsets -->
 
   <compset>
-    <alias>CR_JRA</alias>
+    <alias>CR_JRA_DA</alias>
     <lname>1850_DATM%JRA_SLND_SICE_MOM6%REGIONAL_SROF_SGLC_SWAV_DART%1</lname>
   </compset>
 
   <compset>
-    <alias>CR1850MARBL_JRA</alias>
+    <alias>CR1850MARBL_JRA_DA</alias>
     <lname>1850_DATM%JRA_SLND_SICE_MOM6%REGIONAL%MARBL-BIO_SROF_SGLC_SWAV_DART%1</lname>
   </compset>
 
   <compset>
-    <alias>CR_JRA_GLOFAS</alias>
+    <alias>CR_JRA_GLOFAS_DA</alias>
     <lname>1850_DATM%JRA_SLND_SICE_MOM6%REGIONAL_DROF%GLOFAS_SGLC_SWAV_DART%1</lname>
   </compset>
 
   <compset>
-    <alias>CR1850MARBL_JRA_GLOFAS</alias>
+    <alias>CR1850MARBL_JRA_GLOFAS_DA</alias>
     <lname>1850_DATM%JRA_SLND_SICE_MOM6%REGIONAL%MARBL-BIO_DROF%GLOFAS_SGLC_SWAV_DART%1</lname>
   </compset>
 
