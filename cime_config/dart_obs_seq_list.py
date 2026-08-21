@@ -3,12 +3,14 @@ import os, sys, re
 _CIMEROOT = os.getenv("CIMEROOT")
 sys.path.append(os.path.join(_CIMEROOT, "scripts", "Tools"))
 
-from CIME.ParamGen.paramgen import ParamGen
+from dart_cesm_components import get_active_da_components
+
+_OBS_SEQ_RE = re.compile(r"obs_seq\.0Z\.(\d{8})$")
 
 
-class DART_obs_seq_list(ParamGen):
+class DART_obs_seq_list:
     """Generates Buildconf/dart.input_data_list: observation sequence files
-    required by DART for each active DA component.
+    available for each active DA component.
 
     One section is written per active component:
       DATA_ASSIMILATION_OCN == True  ->  ocn_obs_seq entries
@@ -16,24 +18,23 @@ class DART_obs_seq_list(ParamGen):
       DATA_ASSIMILATION_LND == True  ->  lnd_obs_seq entries
       DATA_ASSIMILATION_ICE == True  ->  ice_obs_seq entries
 
-    The base directory for all observation files is DART_OBS_ROOT.
-    If DART_OBS_ROOT is UNSET (the default), it falls back to
-    $DIN_LOC_ROOT/esp/dart.  Override with:
+    Observation files are found by recursively scanning
+    $DART_OBS_ROOT/{comp}_obs_seq/ for filenames matching
+    obs_seq.0Z.YYYYMMDD. There is no constraint on the directory structure
+    above the filename, so an observation archive can be organized however
+    is convenient -- flat, YYYYMM/, YYYY/MM/, a source-named subfolder, etc.
+
+    The base directory for all observation files is DART_OBS_ROOT. If
+    DART_OBS_ROOT is UNSET (the default), it falls back to
+    $DIN_LOC_ROOT/esp/dart. Override with:
         ./xmlchange DART_OBS_ROOT=/path/to/obs
     """
 
     def write(self, output_path, case):
         dart_obs_root = case.get_value("DART_OBS_ROOT")
         if not dart_obs_root or dart_obs_root == "UNSET":
-            din_loc_root = case.get_value("DIN_LOC_ROOT")
-            dart_obs_root = os.path.join(din_loc_root, "esp", "dart")
-
-        def resolve(varname):
-            if varname == "DART_OBS_ROOT":
-                return dart_obs_root
-            return case.get_value(varname)
-
-        self.reduce(resolve)
+            dart_obs_root = os.path.join(case.get_value("DIN_LOC_ROOT"), "esp", "dart")
+        dart_obs_root = os.path.abspath(dart_obs_root)
 
         run_startdate = case.get_value("RUN_STARTDATE")
         run_startyear = int(run_startdate[:4])
@@ -56,18 +57,19 @@ class DART_obs_seq_list(ParamGen):
 
         run_endyear = int(run_startyear + upper_run_duration_sec / (86400 * 360))
 
-        with open(os.path.join(output_path), 'w') as f:
-            for file_category, file_paths in self.data['dart.input_data_list'].items():
-                if file_paths is not None:
-                    if not isinstance(file_paths, list):
-                        file_paths = [file_paths]
-                    for i, file_path in enumerate(file_paths):
-                        file_path = file_path.replace('"', '').replace("'", "")
-                        basename = os.path.basename(file_path)
-                        year_match = re.search(r'(\d{4})', basename)
-                        if year_match:
-                            file_year = int(year_match.group(1))
-                            if not (run_startyear <= file_year <= run_endyear):
-                                continue
-                        if os.path.isabs(file_path):
-                            f.write(f"{file_category.strip()}({str(i)}) = {file_path}\n")
+        with open(output_path, 'w') as f:
+            for comp in get_active_da_components(case):
+                category = f"{comp}_obs_seq"
+                comp_dir = os.path.join(dart_obs_root, category)
+                found = []
+                for root, _dirs, files in os.walk(comp_dir):
+                    for name in files:
+                        match = _OBS_SEQ_RE.search(name)
+                        if not match:
+                            continue
+                        file_year = int(match.group(1)[:4])
+                        if not (run_startyear <= file_year <= run_endyear):
+                            continue
+                        found.append(os.path.join(root, name))
+                for i, file_path in enumerate(sorted(found)):
+                    f.write(f"{category}({i}) = {file_path}\n")

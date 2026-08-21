@@ -16,9 +16,9 @@ CIME case.setup
     │           ├── _convert_lists_to_strings()
     │           └── ParamGen.write_nml()                 [CIME]
     ├── gen_input_obs_data_list()
-    │   ├── DART_input_data_list.from_json()    [dart_input_data_list]
-    │   └── DART_input_data_list.write(dart.input_data_list, case)
-    │       └── ParamGen.reduce()                        [CIME]
+    │   └── DART_obs_seq_list.write(dart.input_data_list, case)  [dart_obs_seq_list]
+    │       ├── get_active_da_components(case)
+    │       └── os.walk($DART_OBS_ROOT/{comp}_obs_seq/) per active comp
     ├── set_cesm_data_assimilation_options()
     │   └── get_active_da_components(case)
     └── stage_sampling_error_correction(input_nml)

@@ -22,8 +22,7 @@ args = parser.parse_args()
 def yaml_to_json(workdir):
 
     print(workdir)
-    yaml_files = [os.path.join(workdir,"input_nml.yaml"),
-                  os.path.join(workdir,"input_data_list.yaml"),]
+    yaml_files = [os.path.join(workdir,"input_nml.yaml"),]
     output_dir = os.path.join(workdir,"json")
 
     import json

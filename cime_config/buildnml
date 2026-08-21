@@ -266,14 +266,10 @@ def buildnml(case, caseroot, compname):
     def gen_input_obs_data_list():
         """Generate Buildconf/dart.input_data_list of observation sequence files.
 
-        One section per active DA component (ocn_obs_seq, atm_obs_seq, etc.).
-        The base path is DART_OBS_ROOT (defaults to $DIN_LOC_ROOT/esp/dart).
+        One section per active DA component (ocn_obs_seq, atm_obs_seq, etc.),
+        discovered by scanning DART_OBS_ROOT (defaults to $DIN_LOC_ROOT/esp/dart).
         """
-        input_data_list_template = os.path.join(
-            dartroot, "param_templates", "json", "input_data_list.json"
-        )
-        dart_params = DART_obs_seq_list.from_json(input_data_list_template)
-        dart_params.write(os.path.join(confdir, '..', "dart.input_data_list"), case)
+        DART_obs_seq_list().write(os.path.join(confdir, '..', "dart.input_data_list"), case)
 
     def set_cesm_data_assimilation_options():
         """Set case XML variables for data assimilation"""
