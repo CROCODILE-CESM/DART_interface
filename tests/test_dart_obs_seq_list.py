@@ -46,8 +46,8 @@ def read_manifest(path):
 
 def test_finds_files_regardless_of_subdir_structure(tmp_path):
     obs_root = tmp_path / "obs"
-    nested = obs_root / "ocn_obs_seq" / "WOD13" / "200501" / "obs_seq.0Z.20050102"
-    flat = obs_root / "ocn_obs_seq" / "obs_seq.0Z.20050103"
+    nested = obs_root / "ocn_obs_seq" / "WOD13" / "200501" / "obs_seq.2005-01-02-00000.out"
+    flat = obs_root / "ocn_obs_seq" / "obs_seq.2005-01-03-00000.out"
     touch(str(nested))
     touch(str(flat))
 
@@ -62,8 +62,8 @@ def test_finds_files_regardless_of_subdir_structure(tmp_path):
 
 def test_filters_by_year_window(tmp_path):
     obs_root = tmp_path / "obs"
-    in_window = obs_root / "ocn_obs_seq" / "obs_seq.0Z.20050105"
-    out_of_window = obs_root / "ocn_obs_seq" / "obs_seq.0Z.19990105"
+    in_window = obs_root / "ocn_obs_seq" / "obs_seq.2005-01-05-00000.out"
+    out_of_window = obs_root / "ocn_obs_seq" / "obs_seq.1999-01-05-00000.out"
     touch(str(in_window))
     touch(str(out_of_window))
 
@@ -79,8 +79,8 @@ def test_filters_by_year_window(tmp_path):
 
 def test_only_active_components_included(tmp_path):
     obs_root = tmp_path / "obs"
-    ocn_file = obs_root / "ocn_obs_seq" / "obs_seq.0Z.20050101"
-    atm_file = obs_root / "atm_obs_seq" / "obs_seq.0Z.20050101"
+    ocn_file = obs_root / "ocn_obs_seq" / "obs_seq.2005-01-01-00000.out"
+    atm_file = obs_root / "atm_obs_seq" / "obs_seq.2005-01-01-00000.out"
     touch(str(ocn_file))
     touch(str(atm_file))
 
@@ -95,7 +95,7 @@ def test_only_active_components_included(tmp_path):
 
 def test_non_matching_filenames_ignored(tmp_path):
     obs_root = tmp_path / "obs"
-    good = obs_root / "ocn_obs_seq" / "obs_seq.0Z.20050101"
+    good = obs_root / "ocn_obs_seq" / "obs_seq.2005-01-01-00000.out"
     bad = obs_root / "ocn_obs_seq" / "README.txt"
     touch(str(good))
     touch(str(bad))
@@ -122,7 +122,7 @@ def test_missing_component_directory_writes_no_entries(tmp_path):
 
 def test_unset_dart_obs_root_falls_back_to_din_loc_root(tmp_path):
     din_loc_root = tmp_path / "din_loc_root"
-    obs_file = din_loc_root / "esp" / "dart" / "ocn_obs_seq" / "obs_seq.0Z.20050101"
+    obs_file = din_loc_root / "esp" / "dart" / "ocn_obs_seq" / "obs_seq.2005-01-01-00000.out"
     touch(str(obs_file))
 
     case = make_case("UNSET")

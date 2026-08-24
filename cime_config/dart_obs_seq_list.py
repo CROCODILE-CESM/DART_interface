@@ -5,7 +5,7 @@ sys.path.append(os.path.join(_CIMEROOT, "scripts", "Tools"))
 
 from dart_cesm_components import get_active_da_components
 
-_OBS_SEQ_RE = re.compile(r"obs_seq\.0Z\.(\d{8})$")
+_OBS_SEQ_RE = re.compile(r"obs_seq\.(\d{4})-\d{2}-\d{2}-\d{5}\.out$")
 
 
 class DART_obs_seq_list:
@@ -20,9 +20,10 @@ class DART_obs_seq_list:
 
     Observation files are found by recursively scanning
     $DART_OBS_ROOT/{comp}_obs_seq/ for filenames matching
-    obs_seq.0Z.YYYYMMDD. There is no constraint on the directory structure
-    above the filename, so an observation archive can be organized however
-    is convenient -- flat, YYYYMM/, YYYY/MM/, a source-named subfolder, etc.
+    obs_seq.YYYY-MM-DD-SSSSS.out (as produced by dartobsgen). There is no
+    constraint on the directory structure above the filename, so an
+    observation archive can be organized however is convenient -- flat,
+    YYYYMM/, YYYY/MM/, a source-named subfolder, etc.
 
     The base directory for all observation files is DART_OBS_ROOT. If
     DART_OBS_ROOT is UNSET (the default), it falls back to
@@ -67,7 +68,7 @@ class DART_obs_seq_list:
                         match = _OBS_SEQ_RE.search(name)
                         if not match:
                             continue
-                        file_year = int(match.group(1)[:4])
+                        file_year = int(match.group(1))
                         if not (run_startyear <= file_year <= run_endyear):
                             continue
                         found.append(os.path.join(root, name))
