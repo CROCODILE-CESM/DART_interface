@@ -222,7 +222,7 @@ def set_template_files_ocn(case, rundir):
         logger.warning(f"filter_input_list.txt not found in {rundir}")
 
     casename = case.get_value("CASE")
-    static_files = sorted(glob.glob(os.path.join(rundir, f"{casename}.mom6.h.static*")))
+    static_files = sorted(glob.glob(os.path.join(rundir, f"{casename}.mom6*.h.static*")))
     if static_files:
         _make_symlink(static_files[0], os.path.join(rundir, "mom6.static.nc"))
     else:
@@ -832,7 +832,7 @@ def copy_geometry_file_for_cycle0(case, rundir, cycle):
         return
     casename = case.get_value("CASE")
     geometry_files = sorted(
-        glob.glob(os.path.join(rundir, f"{casename}.mom6.h.ocean_geometry*"))
+        glob.glob(os.path.join(rundir, f"{casename}.mom6*.h.ocean_geometry*"))
     )
     if geometry_files:
         dst = os.path.join(rundir, "ocean_geometry.nc")
