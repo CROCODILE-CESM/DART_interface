@@ -1305,7 +1305,7 @@ class TestGetObservations:
         caseroot = tmp_path / "case"
         rundir = tmp_path / "run"
         rundir.mkdir()
-        obs_file = tmp_path / "obs_seq.0Z.20010115"
+        obs_file = tmp_path / "obs_seq.2001-01-15-00000.out"
         obs_file.write_text("obs data")
         self._write_input_data_list(caseroot, [f"atm_obs_seq01 = {obs_file}"])
 
@@ -1348,7 +1348,7 @@ class TestGetObservations:
         rundir.mkdir()
         self._write_input_data_list(caseroot, [])
 
-        stale_file = tmp_path / "obs_seq.0Z.20010114"
+        stale_file = tmp_path / "obs_seq.2001-01-14-00000.out"
         stale_file.write_text("stale obs data")
         dest = rundir / "obs_seq.out"
         os.symlink(stale_file, dest)

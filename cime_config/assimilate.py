@@ -315,8 +315,9 @@ def get_observations(case, comp, model_time, rundir):
     (e.g. a symlink left over from a previous cycle) is removed so it can't
     be mistaken for this cycle's observations.
     """
-    date_str = f"{model_time.year:04}{model_time.month:02}{model_time.day:02}"
-    obs_seq_pattern = f"obs_seq.0Z.{date_str}"
+    date_str = (f"{model_time.year:04}-{model_time.month:02}"
+                f"-{model_time.day:02}-{model_time.seconds:05}")
+    obs_seq_pattern = f"obs_seq.{date_str}.out"
     category_key = f"{comp}_obs_seq"
 
     input_data_list_path = os.path.join(
