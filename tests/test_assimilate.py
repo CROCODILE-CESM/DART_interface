@@ -1058,18 +1058,14 @@ class TestCopyGeometryFileForCycle0:
 
         assert (rundir / "ocean_geometry.nc").read_text() == "geometry 1"
 
-    def test_missing_geometry_file_logs_warning(self, tmp_path, caplog):
-        """Test that missing geometry file logs a warning on cycle 0."""
-        import logging
-        caplog.set_level(logging.WARNING)
-
+    def test_missing_geometry_file_raises(self, tmp_path):
+        """Test that a missing geometry file raises on cycle 0."""
         mock_case = self._ocn_active_case()
         rundir = tmp_path / "run"
         rundir.mkdir()
 
-        assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), 0)
-
-        assert "no mom6 geometry files" in caplog.text.lower()
+        with pytest.raises(FileNotFoundError, match="[Nn]o MOM6 geometry files"):
+            assimilate.copy_geometry_file_for_cycle0(mock_case, str(rundir), 0)
 
     def test_non_integer_cycle_string(self, tmp_path, caplog):
         """Test that non-integer cycle value logs warning and does nothing."""

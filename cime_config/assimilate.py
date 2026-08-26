@@ -839,7 +839,8 @@ def copy_geometry_file_for_cycle0(case, rundir, cycle):
         shutil.copy(geometry_files[0], dst)
         logger.info(f"Copied {geometry_files[0]} to {dst} for cycle 0")
     else:
-        logger.warning(f"No MOM6 geometry files found in {rundir} for cycle 0")
+        raise FileNotFoundError(
+            f"No MOM6 geometry files found in {rundir} for cycle 0")
 
 
 # ---------------------------------------------------------------------------
