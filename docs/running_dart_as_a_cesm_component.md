@@ -223,13 +223,19 @@ be rebuilt, clean the ESP component before building again:
 `--clean esp` only removes DART's build (the `ESP` component); it does not clean the build of the other CESM components so `./case.build` only has to rebuild DART.
 
 
-## Observation sequence files
 
-The list of observation sequence files is in
+## List of observation sequence files
+
+The list of observation sequence files DART will use is in stored in
 
 ```
 Buildconf/dart.input_data_list
 ```
+
+This file is created by preview_namelists based on your `DART_OBS_ROOT` setting.
+See [Observations](observations.md) for the directory layout and naming
+convention DART expects, and how to point `DART_OBS_ROOT` at your own
+observation archive.
 
 ## DART input.nml
 
