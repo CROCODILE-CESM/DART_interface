@@ -210,6 +210,18 @@ DART is the ESP component, so its task count and root directory are the `ESP` va
 ./case.build    
 ```
 
+### Cleaning and rebuilding DART
+
+_If_ you change DART source code, or otherwise need to force DART
+be rebuilt, clean the ESP component before building again:
+
+```
+./case.build --clean esp
+./case.build
+```
+
+`--clean esp` only removes DART's build (the `ESP` component); it does not clean the build of the other CESM components so `./case.build` only has to rebuild DART.
+
 
 ## Observation sequence files
 
