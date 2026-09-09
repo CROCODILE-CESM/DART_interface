@@ -123,12 +123,28 @@ calendar is anything else.
 `DATA_ASSIMILATION_OCN=TRUE`: turns on assimilation for the ocean. Set
 `DATA_ASSIMILATION_ATM`, `DATA_ASSIMILATION_LND` or `DATA_ASSIMILATION_ICE` to `TRUE` for
 the other components. All components with DA enabled must have the same `NINST` (the same
-ensemble size).
-
-At least one of these must be `TRUE` when you build the case (`./case.build` builds
+ensemble size). At least one of these must be `TRUE` when you build the case (`./case.build` builds
 `filter` and friends only for the components you have turned on). Once the case is built,
 you can set all four to `FALSE` to run cycles with DA turned off entirely -- see
 [Running without DA (spin-up)](#running-without-da-spin-up).
+
+`DATA_ASSIMILATION_CYCLES`: a CIME variable giving the number of times CIME stops
+the model and calls the DA script within one `./case.submit`. The default is
+`DATA_ASSIMILATION_CYCLES=1`.
+
+To run multiple DA cycles in one job submittion, set DATA_ASSIMILATION_CYCLES>1
+
+```
+./xmlchange DATA_ASSIMILATION_CYCLES=3
+```
+
+Each cycle `assimilate.py` is passed a 
+`cycle` number that starts at `0` and counts up **within that job submission only** -- a
+resubmitted job starts back at `cycle == 0` for its first stop, no matter how many cycles
+earlier submissions already completed. Anything keyed off `cycle == 0` (see
+[Inflation on the first cycle](#inflation-on-the-first-cycle) and
+[Ensemble perturbation on cycle 0](#ensemble-perturbation-on-cycle-0) below) has to account
+for that.
 
 `RUN_STARTDATE`: the start date of the run.
 
@@ -353,6 +369,28 @@ Once the first inflation file exists, `inf_initial_from_restart` and
 inflation restart and read back on every subsequent cycle, so inflation stays fixed at
 `inf_initial` for the whole run, not just the first cycle. `0.6` is a common starting
 value. 
+```
+
+### Ensemble perturbation on cycle 0
+
+A cold-start multi-instance case starts every instance from an identical
+restart, so the ensemble has no spread until something perturbs it. Set
+`filter_nml:perturb_from_single_instance = .true.` in `user_nl_dart` for this case: filter
+then reads only the first instance's restart and perturbs it into the full ensemble,
+instead of reading all `NINST` per-instance restarts.
+
+`assimilate.py` restricts `perturb_from_single_instance = .true.` to `cycle == 0`:
+it is forced back to `.false.` on every cycle > 0, regardless of the setting in `user_nl_dart`. If you
+leave the namelist value `.false.` (the template default), nothing is forced on at any
+cycle. `perturbation_amplitude` controls the size of the cycle-0 perturbation and is
+ignored once `perturb_from_single_instance` is `.false.`.
+
+```{warning}
+If you resubmit a job mid-experiment with `perturb_from_single_instance` still `.true.`,
+CIME's cycle counter restarts at 0 for the new job submission (see
+[`DATA_ASSIMILATION_CYCLES`](#case-options) above), so cycle 0 perturbs again and discards
+the ensemble spread already built up by assimilation. Set it back to `.false.` in
+`user_nl_dart` before resubmitting an in-progress multi-submittion experiment.
 ```
 
 ### Running without DA (spin-up)
